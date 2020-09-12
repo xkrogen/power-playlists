@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/spotify-dynamic-playlists.iml" filepath="$PROJECT_DIR$/spotify-dynamic-playlists.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/spotify-dynamic-playlists.iml" filepath="$PROJECT_DIR$/.idea/spotify-dynamic-playlists.iml" />
     </modules>
   </component>
 </project>
