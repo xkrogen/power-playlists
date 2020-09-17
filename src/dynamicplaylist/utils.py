@@ -1,0 +1,87 @@
+from __future__ import annotations
+
+import os
+from typing import Dict, List, Union
+
+import yaml
+
+
+class Constants:
+    APP_HOMEDIR = os.path.expanduser('~/.spotify-dynamic-playlists')
+    APP_CONFIG_FILE_DEFAULT = f'{APP_HOMEDIR}/conf.yaml'
+
+    SECURITY_SCOPES = 'playlist-read-collaborative playlist-modify-public playlist-read-private ' \
+                      'playlist-modify-private user-library-modify user-library-read'
+
+    PAGINATION_LIMIT = 50
+
+    CLIENT_ID_DEFAULT = '5157433d6cd0401f9f80540d498b6f40'
+    CLIENT_REDIRECT_URI_DEFAULT = 'http://localhost:5050'
+    USER_CONFIG_DIR_DEFAULT = f'{APP_HOMEDIR}/userconf'
+    CACHE_DIR_DEFAULT = f'{APP_HOMEDIR}/cache'
+    LOG_FILE_PATH_DEFAULT = f'{APP_HOMEDIR}/app.log'
+    LOG_FILE_LEVEL_DEFAULT = 'DEBUG'
+    LOG_FILE_APPEND_DEFAULT = False
+    VERIFY_MODE_DEFAULT = False
+
+
+global_conf: Union[AppConfig, None] = None
+
+
+class AppConfig:
+    def __init__(self, app_config_path: Union[str, os.PathLike[str]] = None):
+        self.client_id = Constants.CLIENT_ID_DEFAULT
+        self.client_redirect_uri = Constants.CLIENT_REDIRECT_URI_DEFAULT
+        self.user_config_dir = Constants.USER_CONFIG_DIR_DEFAULT
+        self.cache_dir = Constants.CACHE_DIR_DEFAULT
+        self.log_file_path = Constants.LOG_FILE_PATH_DEFAULT
+        self.log_file_level = Constants.LOG_FILE_LEVEL_DEFAULT
+        self.log_file_append = Constants.LOG_FILE_APPEND_DEFAULT
+        self.verify_mode = Constants.VERIFY_MODE_DEFAULT
+        if app_config_path is not None:
+            if not os.path.isfile(app_config_path):
+                raise ValueError(f'Received invalid app_config_path: {app_config_path}')
+            self.__load_from_file(app_config_path)
+        elif os.path.isfile(Constants.APP_CONFIG_FILE_DEFAULT):
+            self.__load_from_file(Constants.APP_CONFIG_FILE_DEFAULT)
+
+    def __load_from_file(self, path: Union[str, os.PathLike[str]]):
+        with open(path) as conf_file:
+            conf_yaml = yaml.safe_load(conf_file)
+
+        def get_or_default(key, default):
+            return conf_yaml[key] if key in conf_yaml else default
+
+        self.client_id = get_or_default('client_id', self.client_id)
+        self.client_redirect_uri = get_or_default('client_redirect_uri', self.client_redirect_uri)
+        self.user_config_dir = get_or_default('user_config_dir', self.user_config_dir)
+        self.cache_dir = get_or_default('cache_dir', self.cache_dir)
+        self.log_file_path = get_or_default('log_file_path', self.log_file_path)
+        self.log_file_level = get_or_default('log_file_level', self.log_file_level)
+        self.log_file_append = get_or_default('log_file_append', self.log_file_append)
+        self.verify_mode = get_or_default('verify_mode', self.verify_mode)
+
+    def get_user_config_files(self, user_config_file_paths: List[str] = None) -> List[str]:
+        if user_config_file_paths is not None and len(user_config_file_paths) != 0:
+            for user_config_file_path in user_config_file_paths:
+                if not os.path.isfile(user_config_file_path):
+                    raise ValueError(f'Invalid user config file path supplied: {user_config_file_path}')
+            return user_config_file_paths
+        elif os.path.isdir(self.user_config_dir):
+            filenames = os.listdir(self.user_config_dir)
+            yaml_files = [f'{self.user_config_dir}/{f}' for f in filenames if f.endswith('.yaml')]
+            if len(yaml_files) == 0:
+                raise ValueError(f'Found valid user config directory but it was empty: {self.user_config_dir}')
+            return yaml_files
+        else:
+            raise ValueError(f'Unable to find user config directory, searched for: {self.user_config_dir}')
+
+
+class UserConfig:
+    def __init__(self, user_config_path: Union[str, os.PathLike[str]]):
+        with open(user_config_path) as conf_file:
+            conf_yaml = yaml.safe_load(conf_file)
+        self.username: str = conf_yaml['username']
+        self.scenario_dicts: List[Dict[str, Dict[str, Union[str, List[str]]]]] = conf_yaml['scenarios']
+        if not issubclass(list, type(self.scenario_dicts)) or len(self.scenario_dicts) < 1:
+            raise ValueError(f'Invalid "scenarios" found within user conf file: {user_config_path}')

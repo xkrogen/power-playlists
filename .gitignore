@@ -2,3 +2,5 @@ config/app_credentials.yaml
 cache
 __pycache__
 .idea
+*.log
+**/*.egg-info
