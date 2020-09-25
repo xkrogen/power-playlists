@@ -3,9 +3,11 @@ from __future__ import annotations
 import abc
 import functools
 import logging
+import re
 from abc import ABC
 from typing import Dict, Iterable, List, Union, cast
 
+import spotipy
 from spotipy import Spotify
 
 from . import utils
@@ -19,10 +21,13 @@ def resolve_node_list(spotipy_client: Spotify,
                       unresolved_node_list: Iterable[(str, NestedStrDict)]) -> List[Node]:
     node_map_unresolved = {node_id: Node.from_dict(spotipy_client, node_id, node_dict)
                            for node_id, node_dict in unresolved_node_list}
-    node_map = {}
-    for node in node_map_unresolved.values():
-        for res_nid, res_node in node.resolve_template().items():
-            node_map[res_nid] = res_node
+    node_map = node_map_unresolved
+    while len([n for n in node_map_unresolved.values() if n.ntype == 'template']) > 0:
+        node_map = {}
+        for node in node_map_unresolved.values():
+            for res_nid, res_node in node.resolve_template().items():
+                node_map[res_nid] = res_node
+        node_map_unresolved = node_map
     for node in node_map.values():
         node.resolve_inputs(node_map)
     node_list = list(node_map.values())
@@ -69,6 +74,9 @@ class Node(ABC):
 
     def resolve_template(self) -> Dict[str, 'Node']:
         return {self.nid: self}
+
+    def has_prop(self, prop_key: str):
+        return prop_key in self.__fulldict
 
     def get_required_prop(self, prop_key: str):
         if prop_key not in self.__fulldict:
@@ -184,7 +192,7 @@ class OutputNode(NonleafNode):
                 start_idx = -1 * (Constants.PAGINATION_LIMIT + tracks_removed)
                 end_idx = None if tracks_removed == 0 else -tracks_removed
                 tracks_to_remove = required_removals[start_idx:end_idx]
-                snapshot_id = self.spotipy.\
+                snapshot_id = self.spotipy. \
                     playlist_remove_specific_occurrences_of_items(playlist_uri, tracks_to_remove,
                                                                   snapshot_id=playlist['snapshot_id'])['snapshot_id']
                 tracks_removed += len(tracks_to_remove)
@@ -196,7 +204,7 @@ class OutputNode(NonleafNode):
         if len(new_track_uris) > 0:
             tracks_added = 0
             while tracks_added < len(new_track_uris):
-                tracks_to_add = new_track_uris[tracks_added:tracks_added+Constants.PAGINATION_LIMIT]
+                tracks_to_add = new_track_uris[tracks_added:tracks_added + Constants.PAGINATION_LIMIT]
                 snapshot_id = self.spotipy.playlist_add_items(playlist_uri, tracks_to_add)
                 tracks_added += len(tracks_to_add)
             expected_ordering = [uri for uri in existing_track_uris
@@ -218,8 +226,18 @@ class OutputNode(NonleafNode):
                 start_idx = current_track_uris.index(target_uri)
                 logger.info(f'Swapping pos {start_idx} into pos {target_idx} (uri <{target_uri}>)')
                 # TODO attempt to group ranges to reduce API call volume
-                snapshot_id = self.spotipy.playlist_reorder_items(playlist_uri, start_idx, target_idx,
-                                                                  snapshot_id=snapshot_id)['snapshot_id']
+                try:
+                    snapshot_id = self.spotipy.playlist_reorder_items(playlist_uri, start_idx, target_idx,
+                                                                      snapshot_id=snapshot_id)['snapshot_id']
+                    # Sometimes snapshot_id ends up being a dict. It's not clear why, but it is necessary to then
+                    # go one level deeper to extract the real snapshot_id.
+                    if type(snapshot_id) == Dict:
+                        snapshot_id = snapshot_id['snapshot_id']
+                except spotipy.SpotifyException as se:
+                    logger.error(f'Encountered error while attempting to reorder items. playlist_uri={playlist_uri}, '
+                                 f'start_idx={start_idx}, target_idx={target_idx}, snapshot_id={snapshot_id}',
+                                 exc_info=se)
+                    raise se
                 current_track_uris.insert(target_idx, current_track_uris.pop(start_idx))
             self.verify_playlist_contents(expected_output_track_uris, playlist_uri, 'reordering')
 
@@ -265,6 +283,7 @@ class LogicNode(NonleafNode):
                     return t['track']['album']['release_date']
                 else:
                     raise ValueError(f'sort node <{self.nid}> unable to find sort key <{sort_key}> in track: {t}')
+
             return sorted(self.inputs[0].tracks(), key=key_fn, reverse=sort_desc)
         elif self.ntype == 'dedup':
             self.assert_input_count(1)
@@ -288,21 +307,60 @@ class TemplateNode(Node):
 
     def resolve_template(self):
         if self.template_name == 'combine_sort_dedup_output':
-            # Required props: input_uris, sort_key, output_playlist_name
+            # Required props: [input_uris or input_nodes], sort_key, output_playlist_name
             node_list = list()
-            for idx, input_uri in enumerate(self.get_required_prop('input_uris')):
-                node_list.append(InputNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_in_{idx}', type='input',
-                                           source_type='playlist', uri=input_uri))
+            if self.has_prop('input_uris'):
+                for idx, input_uri in enumerate(self.get_required_prop('input_uris')):
+                    node_list.append(InputNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_in_{idx}',
+                                               type='input', source_type='playlist', uri=input_uri))
+                input_node_ids = [node.nid for node in node_list]
+            else:
+                input_node_ids = self.get_required_prop('input_nodes')
             node_list.append(LogicNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_combine', type='combiner',
-                                       inputs=[node.nid for node in node_list]))
+                                       inputs=input_node_ids))
             node_list.append(LogicNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_sort', type='sort',
                                        inputs=[f'{self.nid}_combine'],
                                        sort_key=self.get_required_prop('sort_key')))
             node_list.append(LogicNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_dedup', type='dedup',
                                        inputs=[f'{self.nid}_sort']))
-            node_list.append(OutputNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_output', type='output',
+            node_list.append(OutputNode(spotipy_client=self.spotipy, node_id=f'{self.nid}', type='output',
                                         inputs=[f'{self.nid}_dedup'],
                                         playlist_name=self.get_required_prop('output_playlist_name')))
+            return {node.nid: node for node in node_list}
+        if self.template_name == 'time_genre_combiner':
+            # Required props: genres, times, <time>_<genre>_uri for all (genre, time), output_name_format
+            #    genres - list of genre names
+            #    times - list of time period names
+            #    <time>_<genre>_uri - playlist uri for the combination of the given time and genre
+            #    output_name_format - format string for the output playlist name,
+            #                         <GENRE> will be replaced with the genre and <TIME> will be replaced with the time
+            node_list = list()
+            genres = self.get_required_prop('genres')
+            times = self.get_required_prop('times')
+            for genre in genres:
+                for time in times:
+                    node_list.append(InputNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_{time}_{genre}',
+                                               type='input', source_type='playlist',
+                                               uri=self.get_required_prop(f'{time}_{genre}_uri')))
+
+            def get_output_name(time, genre):
+                return re.sub(r'\s+', ' ', self.get_required_prop('output_name_format')
+                              .replace('<TIME>', time).replace('<GENRE>', genre)).strip()
+
+            for time in times:
+                node_list.append(TemplateNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_{time}_all',
+                                              type='template', template_name='combine_sort_dedup_output',
+                                              sort_key='added_at', output_playlist_name=get_output_name(time, ''),
+                                              input_nodes=[f'{self.nid}_{time}_{genre}' for genre in genres]))
+            for genre in genres:
+                node_list.append(TemplateNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_{genre}_all',
+                                              type='template', template_name='combine_sort_dedup_output',
+                                              sort_key='added_at', output_playlist_name=get_output_name('', genre),
+                                              input_nodes=[f'{self.nid}_{time}_{genre}' for time in times]))
+            node_list.append(TemplateNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_all',
+                                          type='template', template_name='combine_sort_dedup_output',
+                                          sort_key='added_at', output_playlist_name=get_output_name('All', ''),
+                                          input_nodes=[f'{self.nid}_{time}_all' for time in times]))
             return {node.nid: node for node in node_list}
         else:
             raise ValueError(f'Unsupported template name for <{self.nid}>: {self.template_name}')
