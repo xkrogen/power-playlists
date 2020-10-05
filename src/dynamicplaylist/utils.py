@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import enum
 import os
 from typing import Dict, List, Union
 
 import yaml
+
+
+class VerifyMode(enum.Enum):
+    NONE = 'No verification'
+    END = 'Verify after all updates to a single playlist'
+    INCREMENTAL = 'Verify after each update to a playlist'
 
 
 class Constants:
@@ -20,9 +27,10 @@ class Constants:
     USER_CONFIG_DIR_DEFAULT = f'{APP_HOMEDIR}/userconf'
     CACHE_DIR_DEFAULT = f'{APP_HOMEDIR}/cache'
     LOG_FILE_PATH_DEFAULT = f'{APP_HOMEDIR}/app.log'
-    LOG_FILE_LEVEL_DEFAULT = 'DEBUG'
-    LOG_FILE_APPEND_DEFAULT = False
-    VERIFY_MODE_DEFAULT = False
+    LOG_FILE_LEVEL_DEFAULT = 'INFO'
+    DAEMON_SLEEP_PERIOD_MINUTES_DEFAULT = 60 * 12
+    DAEMON_PIDFILE_DEFAULT = f'{APP_HOMEDIR}/daemon.pid'
+    VERIFY_MODE_DEFAULT = VerifyMode.END
 
 
 global_conf: Union[AppConfig, None] = None
@@ -36,7 +44,8 @@ class AppConfig:
         self.cache_dir = Constants.CACHE_DIR_DEFAULT
         self.log_file_path = Constants.LOG_FILE_PATH_DEFAULT
         self.log_file_level = Constants.LOG_FILE_LEVEL_DEFAULT
-        self.log_file_append = Constants.LOG_FILE_APPEND_DEFAULT
+        self.daemon_sleep_period_minutes = Constants.DAEMON_SLEEP_PERIOD_MINUTES_DEFAULT
+        self.daemon_pidfile = Constants.DAEMON_PIDFILE_DEFAULT
         self.verify_mode = Constants.VERIFY_MODE_DEFAULT
         if app_config_path is not None:
             if not os.path.isfile(app_config_path):
@@ -59,7 +68,10 @@ class AppConfig:
         self.log_file_path = get_or_default('log_file_path', self.log_file_path)
         self.log_file_level = get_or_default('log_file_level', self.log_file_level)
         self.log_file_append = get_or_default('log_file_append', self.log_file_append)
-        self.verify_mode = get_or_default('verify_mode', self.verify_mode)
+        self.daemon_sleep_period_minutes = get_or_default('daemon_sleep_period_minutes',
+                                                          self.daemon_sleep_period_minutes)
+        self.daemon_pidfile = get_or_default('daemon_pidfile', self.daemon_pidfile)
+        self.verify_mode = VerifyMode[get_or_default('verify_mode', self.verify_mode).upper()]
 
     def get_user_config_files(self, user_config_file_paths: List[str] = None) -> List[str]:
         if user_config_file_paths is not None and len(user_config_file_paths) != 0:

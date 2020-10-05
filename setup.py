@@ -34,21 +34,21 @@ setup(
     project_urls={
     },
     keywords=[
-        # eg: 'keyword1', 'keyword2', 'keyword3',
+        'spotify',
+        'playlists',
+        'tool',
     ],
     python_requires='>=3.7',
     install_requires=[
         'Click>=7.1,<8',
+        'lockfile>=0.12',
+        'psutil>5.0,<6',
         'pytest>=6.0,<7',
+        'python-daemon>=2.2.4,<3',
         'PyYAML>=5.3,<6',
         'setuptools>=50.1,<51',
         'spotipy>=2.14.0,<3',
     ],
-    extras_require={
-        # eg:
-        #   'rst': ['docutils>=0.11'],
-        #   ':python_version=="2.6"': ['argparse'],
-    },
     entry_points='''
         [console_scripts]
         spotify-dynamic-playlists=dynamicplaylist.main:cli

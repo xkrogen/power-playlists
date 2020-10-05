@@ -11,7 +11,7 @@ import spotipy
 from spotipy import Spotify
 
 from . import utils
-from .utils import Constants
+from .utils import Constants, VerifyMode
 
 NestedStrDict = Dict[str, Union[str, 'NestedStrDict', List['NestedStrDict']]]
 logger = logging.getLogger(__name__)
@@ -149,6 +149,7 @@ class OutputNode(NonleafNode):
         return self.get_required_prop('playlist_name')
 
     def create_or_update(self):
+        is_updated = False
         user_playlists_resp = self.spotipy.current_user_playlists()
         playlist_list = user_playlists_resp['items']
         while len(playlist_list) < int(user_playlists_resp['total']):
@@ -168,6 +169,7 @@ class OutputNode(NonleafNode):
                 self.spotipy.playlist_change_details(playlist['id'], public=is_public, description=description)
             existing_track_uris = [track['track']['uri'] for track in playlist['tracks']['items']]
         else:
+            logging.info(f'Creating new playlist `{self.playlist_name()}`')
             user = self.spotipy.current_user()
             playlist = \
                 self.spotipy.user_playlist_create(user['id'], self.playlist_name(), is_public, False, description)
@@ -192,10 +194,12 @@ class OutputNode(NonleafNode):
                 start_idx = -1 * (Constants.PAGINATION_LIMIT + tracks_removed)
                 end_idx = None if tracks_removed == 0 else -tracks_removed
                 tracks_to_remove = required_removals[start_idx:end_idx]
+                logger.debug(f'Playlist [{self.playlist_name()}]: Removing tracks: {tracks_to_remove}')
                 snapshot_id = self.spotipy. \
                     playlist_remove_specific_occurrences_of_items(playlist_uri, tracks_to_remove,
                                                                   snapshot_id=playlist['snapshot_id'])['snapshot_id']
                 tracks_removed += len(tracks_to_remove)
+            is_updated = True
             self.verify_playlist_contents([uri for uri in existing_track_uris if uri in expected_output_track_uri_set],
                                           playlist_uri, 'item removal')
 
@@ -205,15 +209,17 @@ class OutputNode(NonleafNode):
             tracks_added = 0
             while tracks_added < len(new_track_uris):
                 tracks_to_add = new_track_uris[tracks_added:tracks_added + Constants.PAGINATION_LIMIT]
+                logger.debug(f'Playlist [{self.playlist_name()}]: Adding tracks: {tracks_to_add}')
                 snapshot_id = self.spotipy.playlist_add_items(playlist_uri, tracks_to_add)
                 tracks_added += len(tracks_to_add)
             expected_ordering = [uri for uri in existing_track_uris
                                  if uri in expected_output_track_uri_set] + new_track_uris
+            is_updated = True
             self.verify_playlist_contents(expected_ordering, playlist_uri, 'item addition')
 
         # Step 3: Reorder tracks currently in the playlist to match the expected order
         current_track_uris = [uri for uri in existing_track_uris if uri in expected_output_track_uri_set] + \
-            new_track_uris
+                             new_track_uris
         if set(current_track_uris) != expected_output_track_uri_set \
                 or len(current_track_uris) != len(expected_output_track_uris):
             raise ValueError(f'TODO')
@@ -224,7 +230,8 @@ class OutputNode(NonleafNode):
                                               for target_idx, uri in enumerate(expected_output_track_uris)
                                               if current_track_uris[target_idx] != uri)
                 start_idx = current_track_uris.index(target_uri)
-                logger.info(f'Swapping pos {start_idx} into pos {target_idx} (uri <{target_uri}>)')
+                logger.debug(f'Playlist [{self.playlist_name()}]: Swapping pos {start_idx} into pos {target_idx} '
+                             f'(target song uri <{target_uri}>)')
                 # TODO attempt to group ranges to reduce API call volume
                 try:
                     snapshot_id = self.spotipy.playlist_reorder_items(playlist_uri, start_idx, target_idx,
@@ -239,10 +246,18 @@ class OutputNode(NonleafNode):
                                  exc_info=se)
                     raise se
                 current_track_uris.insert(target_idx, current_track_uris.pop(start_idx))
+            is_updated = True
             self.verify_playlist_contents(expected_output_track_uris, playlist_uri, 'reordering')
+        if is_updated:
+            logging.info(f'Updated playlist `{self.playlist_name()}` to reflect new changes, will verify output.')
+            self.verify_playlist_contents(expected_output_track_uris, playlist_uri, 'updates')
+        else:
+            logging.info(f'Playlist `{self.playlist_name()}` was not updated because no changes were detected.')
 
-    def verify_playlist_contents(self, expected_uris: List[str], playlist_uri: str, action_description: str):
-        if utils.global_conf.verify_mode:
+    def verify_playlist_contents(self, expected_uris: List[str], playlist_uri: str, action_description: str,
+                                 is_end: bool = False):
+        if utils.global_conf.verify_mode == VerifyMode.INCREMENTAL \
+                or (utils.global_conf.verify_mode == VerifyMode.END and is_end):
             playlist = self._playlist_all_items(playlist_uri)
             uris = [track['track']['uri'] for track in playlist['tracks']['items']]
             if uris != expected_uris:

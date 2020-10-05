@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
 
 import logging
+import os
 import sys
+import time
+from logging import handlers
 from typing import List, cast
 
 import click
+import lockfile
+import psutil as psutil
 import spotipy
+from daemon import DaemonContext, pidfile
+from lockfile import pidlockfile
 from spotipy.oauth2 import SpotifyPKCE
 
 from . import nodes, utils
 from .nodes import OutputNode
-from .utils import AppConfig, Constants, UserConfig
+from .utils import AppConfig, Constants, UserConfig, VerifyMode
 
 
 def eprint(*values):
@@ -22,45 +29,143 @@ def exit_message(*message_print_values, exit_code=1):
     exit(exit_code)
 
 
-@click.command()
+@click.group(context_settings=dict(max_content_width=9999))
 @click.option('--appconf',
               default=None,
               type=click.Path(exists=True, dir_okay=False, resolve_path=True),
               help='Path to an app configuration YAML file.')
+def cli(appconf: str):
+    app_conf = AppConfig(appconf)
+    utils.global_conf = app_conf
+
+
+@cli.command()
 @click.option('--userconf',
               default=None,
               type=click.Path(exists=True, dir_okay=False, resolve_path=True),
               multiple=True,
               help='Path to a user configuration YAML file. Can be specified multiple times.')
-@click.option('--loglevel',
-              default='WARNING',
-              show_default=True,
-              type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR']),
-              help='Log level to use for console (stderr) logging.')
-@click.option('--verify',
-              default=None,
-              is_flag=True,
-              help='Whether to perform verification on the output playlist to ensure it matches expectation. '
-                   'Recommended when executing a scenario for the first time, or after it has been modified.')
-def cli(appconf: str, userconf: List[str], loglevel: str, verify: bool):
-    app_conf = AppConfig(appconf)
-    utils.global_conf = app_conf
-    if verify is not None:
-        app_conf.verify_mode = verify
+@click.option('--verifymode',
+              default='DEFAULT',
+              type=click.Choice([vm.name for vm in VerifyMode] + ['DEFAULT'], case_sensitive=False),
+              help='Whether to perform verification on updated playlists to ensure they matches expectation. '
+                   'DEFAULT will use the default value from the configuration file, which is END unless configured. '
+                   'END will verify playlist updates after all modifications are made. '
+                   'INCREMENTAL will verify playlist updates after each individual updates. '
+                   'This can be useful for debugging. NONE will never perform verification.')
+def run(userconf: List[str], verifymode: str):
+    """Run a single iteration of the playlist updates."""
+    app_conf = utils.global_conf
+    if verifymode != 'DEFAULT':
+        app_conf.verify_mode = VerifyMode[verifymode]
+    init_logging(app_conf)
+    user_conf_files = app_conf.get_user_config_files(userconf)
+    click.echo(f'Performing update based on user conf file(s): {", ".join(user_conf_files)}')
+    try:
+        perform_update_iteration(app_conf, userconf)
+    except ValueError as e:
+        click.echo(f'Error countered while perform an update: {e}', err=True)
+        click.echo(f'Please see the log file for more details: {app_conf.log_file_path}', err=True)
+        sys.exit(1)
 
+
+@cli.group()
+def daemon():
+    """Control the background process to keep playlists updated."""
+    pass
+
+
+@daemon.command()
+def start():
+    """Start a background process. If an existing process is found, an error will be thrown."""
+    _start()
+
+
+def _start():
+    curr_pid = pidlockfile.read_pid_from_pidfile(utils.global_conf.daemon_pidfile)
+    if curr_pid is not None:
+        click.echo(f'Found existing daemon at PID {curr_pid}. Only one daemon is allowed to run concurrently. '
+                   f'Please kill the previous one using "spotify-dynamic-playlists daemon stop".', err=True)
+        sys.exit(1)
+    click.echo(f'Starting daemon...')
+    context = DaemonContext(stdout=sys.stdout, stderr=sys.stderr)
+    with context:
+        daemon_run_loop(utils.global_conf)
+
+
+@daemon.command()
+def stop():
+    """Stop an existing background process, if one exists."""
+    _stop()
+
+
+def _stop():
+    curr_pid = pidlockfile.read_pid_from_pidfile(utils.global_conf.daemon_pidfile)
+    if curr_pid is None:
+        click.echo(f'No running daemon could be found! Checked for PID file at: {utils.global_conf.daemon_pidfile}')
+    elif not psutil.pid_exists(curr_pid):
+        click.echo(f'Found PID file with PID {curr_pid} but the process doesn\'t exist. Deleting stale PID file.')
+        pidlockfile.remove_existing_pidfile(utils.global_conf.daemon_pidfile)
+    else:
+        running = psutil.Process(pid=curr_pid)
+        click.echo(f'Killing daemon process at PID {curr_pid}...')
+        running.kill()
+        running.wait()
+        # Remove the PID file just in case
+        pidlockfile.remove_existing_pidfile(utils.global_conf.daemon_pidfile)
+        click.echo(f'Successfully killed daemon process.')
+
+
+@daemon.command()
+def restart():
+    """Stop an existing background process, if one exists, and start a new one."""
+    _stop()
+    _start()
+
+
+def init_logging(app_conf: AppConfig):
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG)
-    file_handler = logging.FileHandler(app_conf.log_file_path, mode='a' if app_conf.log_file_append else 'w')
+    root_logger.setLevel(app_conf.log_file_level)
+    file_handler = handlers.RotatingFileHandler(app_conf.log_file_path, maxBytes=1024*1024, backupCount=5)
     file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)-5.5s] [%(name)s] %(message)s"))
     file_handler.setLevel(logging.getLevelName(app_conf.log_file_level))
     root_logger.addHandler(file_handler)
 
-    console_handler = logging.StreamHandler(sys.stderr)
-    console_handler.setFormatter(logging.Formatter("[%(levelname)s] [%(name)s] %(message)s"))
-    console_handler.setLevel(logging.getLevelName(loglevel))
-    root_logger.addHandler(console_handler)
 
-    for f in app_conf.get_user_config_files(userconf):
+def daemon_run_loop(app_conf: AppConfig):
+    pid_file = pidfile.TimeoutPIDLockFile(app_conf.daemon_pidfile, acquire_timeout=1)
+    try:
+        with pid_file:
+            for handler in logging.getLogger().handlers:
+                logging.getLogger().removeHandler(handler)
+            init_logging(app_conf)
+            msg = f'Started daemon at PID {os.getpid()}'
+            click.echo(msg)
+            logging.info(msg)
+            msg = f'Performing update iteration immediately, then every {app_conf.daemon_sleep_period_minutes} minutes'
+            click.echo(msg)
+            logging.info(msg)
+            next_iteration_time = time.time()
+            while True:
+                # Set maximum sleep to 10 minutes to avoid imprecision of long sleep time
+                curr_time = time.time()
+                while curr_time < next_iteration_time:
+                    time.sleep(min(next_iteration_time - curr_time, 10 * 60))
+                    curr_time = time.time()
+                next_iteration_time = curr_time + app_conf.daemon_sleep_period_minutes * 60
+                logging.info(f'Beginning playlist update iteration')
+                perform_update_iteration(app_conf, app_conf.get_user_config_files())
+                logging.info(f'Update iteration completed, '
+                             f'sleeping for {app_conf.daemon_sleep_period_minutes} minutes...')
+    except (lockfile.LockTimeout, lockfile.AlreadyLocked):
+        msg = f'Daemon unable to acquire PID file lock; exiting.'
+        click.echo(msg, err=True)
+        logging.warning(msg)
+        sys.exit(1)
+
+
+def perform_update_iteration(app_conf: AppConfig, user_conf_files: List[str]):
+    for f in user_conf_files:
         user_conf = UserConfig(f)
 
         pkce = SpotifyPKCE(client_id=app_conf.client_id,
@@ -86,4 +191,4 @@ def cli(appconf: str, userconf: List[str], loglevel: str, verify: bool):
 
 
 if __name__ == '__main__':
-    cli()
+    run()
