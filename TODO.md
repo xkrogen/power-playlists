@@ -1,4 +1,6 @@
 Main todos:
+- Add support for time-based filtering to support a "recently added" style playlist
+- Update the way nodes are instantiated to search through subclass tree
 - Add a decent README.md
 - Handle duplicates, both for inputs and outputs, within nodes.py
 - Update playlist description with last update time

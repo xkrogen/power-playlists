@@ -62,8 +62,9 @@ def run(userconf: List[str], verifymode: str):
     user_conf_files = app_conf.get_user_config_files(userconf)
     click.echo(f'Performing update based on user conf file(s): {", ".join(user_conf_files)}')
     try:
-        perform_update_iteration(app_conf, userconf)
-    except ValueError as e:
+        perform_update_iteration(app_conf, user_conf_files)
+    except BaseException as e:
+        logging.error(f'Fatal exception encountered while performing update. Exiting.', exc_info=e)
         click.echo(f'Error countered while perform an update: {e}', err=True)
         click.echo(f'Please see the log file for more details: {app_conf.log_file_path}', err=True)
         sys.exit(1)
@@ -147,16 +148,22 @@ def daemon_run_loop(app_conf: AppConfig):
             logging.info(msg)
             next_iteration_time = time.time()
             while True:
-                # Set maximum sleep to 10 minutes to avoid imprecision of long sleep time
-                curr_time = time.time()
-                while curr_time < next_iteration_time:
-                    time.sleep(min(next_iteration_time - curr_time, 10 * 60))
+                try:
+                    # Set maximum sleep to 10 minutes to avoid imprecision of long sleep time
                     curr_time = time.time()
-                next_iteration_time = curr_time + app_conf.daemon_sleep_period_minutes * 60
-                logging.info(f'Beginning playlist update iteration')
-                perform_update_iteration(app_conf, app_conf.get_user_config_files())
-                logging.info(f'Update iteration completed, '
-                             f'sleeping for {app_conf.daemon_sleep_period_minutes} minutes...')
+                    while curr_time < next_iteration_time:
+                        time.sleep(min(next_iteration_time - curr_time, 10 * 60))
+                        curr_time = time.time()
+                    next_iteration_time = curr_time + app_conf.daemon_sleep_period_minutes * 60
+                    logging.info(f'Beginning playlist update iteration')
+                    perform_update_iteration(app_conf, app_conf.get_user_config_files())
+                    logging.info(f'Update iteration completed, '
+                                 f'sleeping for {app_conf.daemon_sleep_period_minutes} minutes...')
+                except ValueError:
+                    logging.exception('Exception encountered while performing update. Continuing.')
+                except BaseException:
+                    logging.exception('Fatal exception encountered while performing update. Exiting.')
+                    raise
     except (lockfile.LockTimeout, lockfile.AlreadyLocked):
         msg = f'Daemon unable to acquire PID file lock; exiting.'
         click.echo(msg, err=True)
@@ -166,6 +173,7 @@ def daemon_run_loop(app_conf: AppConfig):
 
 def perform_update_iteration(app_conf: AppConfig, user_conf_files: List[str]):
     for f in user_conf_files:
+        logging.info(f'Processing user conf file: {f}')
         user_conf = UserConfig(f)
 
         pkce = SpotifyPKCE(client_id=app_conf.client_id,

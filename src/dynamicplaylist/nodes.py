@@ -14,6 +14,7 @@ from . import utils
 from .utils import Constants, VerifyMode
 
 NestedStrDict = Dict[str, Union[str, 'NestedStrDict', List['NestedStrDict']]]
+TrackDict = Dict[str, Union[str, Dict[str, Union[str, Dict[str, str]]]]]
 logger = logging.getLogger(__name__)
 
 
@@ -56,17 +57,19 @@ class Node(ABC):
         if 'type' not in node_dict:
             raise ValueError(f'Invalid definition for node <{node_id}>; unable to find "type" specifier')
         ntype = node_dict['type']
+        typeless_dict = node_dict.copy()
+        del typeless_dict['type']
         if ntype == 'input':
-            return InputNode(spotipy_client=spotipy_client, node_id=node_id, **node_dict)
+            return InputNode.from_dict(spotipy_client=spotipy_client, node_id=node_id, **typeless_dict)
         elif ntype == 'output':
-            return OutputNode(spotipy_client=spotipy_client, node_id=node_id, **node_dict)
+            return OutputNode(spotipy_client=spotipy_client, node_id=node_id, **typeless_dict)
         elif ntype == 'template':
-            return TemplateNode(spotipy_client=spotipy_client, node_id=node_id, **node_dict)
+            return TemplateNode(spotipy_client=spotipy_client, node_id=node_id, **typeless_dict)
         else:
-            return LogicNode(spotipy_client=spotipy_client, node_id=node_id, **node_dict)
+            return LogicNode.from_dict(spotipy_client=spotipy_client, node_id=node_id, node_dict=node_dict)
 
     @abc.abstractmethod
-    def tracks(self) -> List[NestedStrDict]:
+    def tracks(self) -> List[TrackDict]:
         pass
 
     def resolve_inputs(self, node_dict: Dict[str, Node]) -> None:
@@ -86,7 +89,7 @@ class Node(ABC):
     def get_optional_prop(self, prop_key: str, default_value):
         return self.__fulldict.get(prop_key, default_value)
 
-    def _playlist_all_items(self, uri) -> NestedStrDict:
+    def _playlist_all_items(self, uri) -> Dict[str, Union[str, Dict[str, List[TrackDict]]]]:
         playlist_resp = self.spotipy.playlist(uri)
         tracklist = playlist_resp['tracks']['items']
         total_tracks = int(playlist_resp['tracks']['total'])
@@ -97,30 +100,54 @@ class Node(ABC):
         return playlist_resp
 
 
-class InputNode(Node):
+class InputNode(Node, ABC):
+    @staticmethod
+    def from_dict(spotipy_client: Spotify, node_id: str, node_dict: Dict):
+        if 'source_type' not in node_dict:
+            raise ValueError(f'Invalid definition for node <{node_id}>; unable to find "source_type" specifier')
+        source_type = node_dict['source_type']
+        if source_type == 'playlist':
+            return PlaylistNode(spotipy_client=spotipy_client, node_id=node_id, **node_dict)
+        else:
+            raise ValueError(f'Unsupported source_type for a input node <{node_id}>: {source_type}')
+
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        if self.ntype != 'input':
-            raise ValueError(f'Unexpected type <{self.ntype}> for node <{self.nid}>')
+        super().__init__(**kwargs, type='input')
         self.track_cache = None
 
     def source_type(self) -> str:
         return self.get_required_prop('source_type')
 
+    @abc.abstractmethod
+    def _fetch_tracks_impl(self) -> List[NestedStrDict]:
+        pass
+
     def tracks(self) -> List[NestedStrDict]:
-        if self.source_type() == 'playlist':
-            if self.track_cache is None:
-                self.track_cache = self._playlist_all_items(self.get_required_prop('uri'))['tracks']['items']
-            return self.track_cache
-        else:
-            raise ValueError(f"Unsupported source_type for 'input' node <{self.nid}>")
+        if self.track_cache is None:
+            self.track_cache = self._fetch_tracks_impl()
+        return self.track_cache
+
+
+class PlaylistNode(InputNode):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def _fetch_tracks_impl(self) -> List[NestedStrDict]:
+        return self._playlist_all_items(self.get_required_prop('uri'))['tracks']['items']
+
+
+class LikedSongsNode(InputNode):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def _fetch_tracks_impl(self) -> List[NestedStrDict]:
+        # TODO
+        raise NotImplementedError("LikedSongs input node not yet implemented")
 
 
 class NonleafNode(Node, ABC):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        if self.ntype == 'input':
-            raise ValueError(f'Unexpected type <{self.ntype}> for node <{self.nid}>')
         self.input_nids: List[str] = kwargs['inputs']
         self.inputs: List[Node] = list()
 
@@ -130,14 +157,12 @@ class NonleafNode(Node, ABC):
 
 class OutputNode(NonleafNode):
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        if self.ntype != 'output':
-            raise ValueError(f'Unexpected type <{self.ntype}> for node <{self.nid}>')
+        super().__init__(**kwargs, type='output')
 
     def input_node(self):
         if len(self.inputs) != 1:
             raise ValueError(f'Unexpected number of inputs for output node <{self.nid}>')
-        if type(self.inputs[0]) != LogicNode or self.inputs[0].ntype != 'dedup':
+        if self.inputs[0].ntype != 'dedup':
             raise ValueError(f'Duplicates are not currently supported, so all output nodes must be preceded by '
                              f'a dedup node.')
         return self.inputs[0]
@@ -268,53 +293,109 @@ class OutputNode(NonleafNode):
                                  f'Expected items: {expected_uris}.\nFound items: {uris}.')
 
 
-class LogicNode(NonleafNode):
+class LogicNode(NonleafNode, ABC):
+    @staticmethod
+    def from_dict(spotipy_client: Spotify, node_id: str, node_dict: Dict):
+        if 'type' not in node_dict:
+            raise ValueError(f'Invalid definition for node <{node_id}>; unable to find "type" specifier')
+        ntype = node_dict['type']
+        typeless_dict = node_dict.copy()
+        del typeless_dict['type']
+        if ntype == 'combiner':
+            return PlaylistNode(spotipy_client=spotipy_client, node_id=node_id, **typeless_dict)
+        elif ntype == 'sort':
+            return SortNode(spotipy_client=spotipy_client, node_id=node_id, **typeless_dict)
+        elif ntype == 'dedup':
+            return DeduplicateNode(spotipy_client=spotipy_client, node_id=node_id, **typeless_dict)
+        elif ntype == 'liked':
+            return LikedNode(spotipy_client=spotipy_client, node_id=node_id, **typeless_dict)
+        else:
+            raise ValueError(f'Unsupported type for a logic node <{node_id}>: {ntype}')
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def assert_input_count(self, expected_count):
+    def _assert_input_count(self, expected_count):
         if len(self.inputs) != expected_count:
             raise ValueError(f'Nodes of type {self.ntype} are expected to have {expected_count} inputs, but '
                              f'node <{self.nid}> had {len(self.inputs)}')
 
+    def _get_single_input_tracks(self):
+        self._assert_input_count(1)
+        return self.inputs[0].tracks()
+
+
+class CombinerNode(LogicNode):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs, type='combiner')
+
     def tracks(self):
-        if self.ntype == 'combiner':
-            return functools.reduce(lambda l1, l2: l1 + l2, map(lambda i: i.tracks(), self.inputs))
-        elif self.ntype == 'sort':
-            self.assert_input_count(1)
-            sort_key = self.get_required_prop('sort_key')
-            sort_desc = bool(self.get_optional_prop('sort_desc', False))
+        return functools.reduce(lambda l1, l2: l1 + l2, map(lambda i: i.tracks(), self.inputs))
 
-            def key_fn(t):
-                if sort_key == 'added_at':
-                    return t['added_at']
-                elif sort_key == 'name':
-                    return t['track']['name']
-                elif sort_key == 'artist':
-                    return t['track']['artists'][0]['name']
-                elif sort_key == 'album':
-                    return t['track']['album']['name']
-                elif sort_key == 'release_date':
-                    return t['track']['album']['release_date']
-                else:
-                    raise ValueError(f'sort node <{self.nid}> unable to find sort key <{sort_key}> in track: {t}')
 
-            return sorted(self.inputs[0].tracks(), key=key_fn, reverse=sort_desc)
-        elif self.ntype == 'dedup':
-            self.assert_input_count(1)
-            tracks_by_uri = {}
-            for track in self.inputs[0].tracks():
-                uri = track['track']['uri']
-                if uri not in tracks_by_uri:
-                    tracks_by_uri[uri] = track
-            return [track for uri, track in tracks_by_uri.items()]
-        else:
-            raise ValueError(f"Unsupported type <{self.ntype}> for node <{self.nid}>")
+class SortNode(LogicNode):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs, type='sort')
+
+    def tracks(self):
+        sort_key = self.get_required_prop('sort_key')
+        sort_desc = bool(self.get_optional_prop('sort_desc', False))
+
+        def key_fn(t):
+            if sort_key == 'added_at':
+                return t['added_at']
+            elif sort_key == 'name':
+                return t['track']['name']
+            elif sort_key == 'artist':
+                return t['track']['artists'][0]['name']
+            elif sort_key == 'album':
+                return t['track']['album']['name']
+            elif sort_key == 'release_date':
+                return t['track']['album']['release_date']
+            else:
+                raise ValueError(f'sort node <{self.nid}> unable to find sort key <{sort_key}> in track: {t}')
+
+        return sorted(self._get_single_input_tracks(), key=key_fn, reverse=sort_desc)
+
+
+class DeduplicateNode(LogicNode):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs, type='dedup')
+
+    def tracks(self):
+        tracks_by_uri = {}
+        for track in self._get_single_input_tracks():
+            uri = track['track']['uri']
+            if uri not in tracks_by_uri:
+                tracks_by_uri[uri] = track
+        return [track for uri, track in tracks_by_uri.items()]
+
+
+class LikedNode(LogicNode):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs, type='liked')
+        self._track_cache = None
+
+    def tracks(self):
+        if self._track_cache is None:
+            self._assert_input_count(1)
+            start_idx = 0
+            self._track_cache = list()
+            input_tracks = self._get_single_input_tracks().copy()
+            while start_idx < len(input_tracks):
+                next_tracks = input_tracks[start_idx:start_idx+Constants.PAGINATION_LIMIT]
+                next_track_uris = [track['track']['uri'] for track in next_tracks]
+                track_matches = self.spotipy.current_user_saved_tracks_contains(next_track_uris)
+                self._track_cache.extend([track for (track, matched)
+                                          in zip(next_tracks, track_matches)
+                                          if matched])
+                start_idx += Constants.PAGINATION_LIMIT
+        return self._track_cache
 
 
 class TemplateNode(Node):
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(**kwargs, type='template')
         self.template_name = self.get_required_prop('template_name')
 
     def tracks(self):
@@ -326,19 +407,19 @@ class TemplateNode(Node):
             node_list = list()
             if self.has_prop('input_uris'):
                 for idx, input_uri in enumerate(self.get_required_prop('input_uris')):
-                    node_list.append(InputNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_in_{idx}',
-                                               type='input', source_type='playlist', uri=input_uri))
+                    node_list.append(PlaylistNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_in_{idx}',
+                                                  source_type='playlist', uri=input_uri))
                 input_node_ids = [node.nid for node in node_list]
             else:
                 input_node_ids = self.get_required_prop('input_nodes')
-            node_list.append(LogicNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_combine', type='combiner',
-                                       inputs=input_node_ids))
-            node_list.append(LogicNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_sort', type='sort',
-                                       inputs=[f'{self.nid}_combine'],
-                                       sort_key=self.get_required_prop('sort_key')))
-            node_list.append(LogicNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_dedup', type='dedup',
-                                       inputs=[f'{self.nid}_sort']))
-            node_list.append(OutputNode(spotipy_client=self.spotipy, node_id=f'{self.nid}', type='output',
+            node_list.append(CombinerNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_combine',
+                                          inputs=input_node_ids))
+            node_list.append(SortNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_sort',
+                                      inputs=[f'{self.nid}_combine'],
+                                      sort_key=self.get_required_prop('sort_key')))
+            node_list.append(DeduplicateNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_dedup',
+                                             inputs=[f'{self.nid}_sort']))
+            node_list.append(OutputNode(spotipy_client=self.spotipy, node_id=f'{self.nid}',
                                         inputs=[f'{self.nid}_dedup'],
                                         playlist_name=self.get_required_prop('output_playlist_name')))
             return {node.nid: node for node in node_list}
@@ -354,9 +435,9 @@ class TemplateNode(Node):
             times = self.get_required_prop('times')
             for genre in genres:
                 for time in times:
-                    node_list.append(InputNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_{time}_{genre}',
-                                               type='input', source_type='playlist',
-                                               uri=self.get_required_prop(f'{time}_{genre}_uri')))
+                    node_list.append(PlaylistNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_{time}_{genre}',
+                                                  source_type='playlist',
+                                                  uri=self.get_required_prop(f'{time}_{genre}_uri')))
 
             def get_output_name(time, genre):
                 return re.sub(r'\s+', ' ', self.get_required_prop('output_name_format')
@@ -364,16 +445,16 @@ class TemplateNode(Node):
 
             for time in times:
                 node_list.append(TemplateNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_{time}_all',
-                                              type='template', template_name='combine_sort_dedup_output',
+                                              template_name='combine_sort_dedup_output',
                                               sort_key='added_at', output_playlist_name=get_output_name(time, ''),
                                               input_nodes=[f'{self.nid}_{time}_{genre}' for genre in genres]))
             for genre in genres:
                 node_list.append(TemplateNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_{genre}_all',
-                                              type='template', template_name='combine_sort_dedup_output',
+                                              template_name='combine_sort_dedup_output',
                                               sort_key='added_at', output_playlist_name=get_output_name('', genre),
                                               input_nodes=[f'{self.nid}_{time}_{genre}' for time in times]))
             node_list.append(TemplateNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_all',
-                                          type='template', template_name='combine_sort_dedup_output',
+                                          template_name='combine_sort_dedup_output',
                                           sort_key='added_at', output_playlist_name=get_output_name('All', ''),
                                           input_nodes=[f'{self.nid}_{time}_all' for time in times]))
             return {node.nid: node for node in node_list}
