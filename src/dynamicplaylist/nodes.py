@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import functools
+import inspect
 import logging
 import re
 from abc import ABC
@@ -23,7 +24,7 @@ def resolve_node_list(spotipy_client: Spotify,
     node_map_unresolved = {node_id: Node.from_dict(spotipy_client, node_id, node_dict)
                            for node_id, node_dict in unresolved_node_list}
     node_map = node_map_unresolved
-    while len([n for n in node_map_unresolved.values() if n.ntype == 'template']) > 0:
+    while len([n for n in node_map_unresolved.values() if isinstance(n, TemplateNode)]) > 0:
         node_map = {}
         for node in node_map_unresolved.values():
             for res_nid, res_node in node.resolve_template().items():
@@ -32,12 +33,12 @@ def resolve_node_list(spotipy_client: Spotify,
     for node in node_map.values():
         node.resolve_inputs(node_map)
     node_list = list(node_map.values())
-    output_nodes = [cast(OutputNode, node) for node in node_list if node.ntype == 'output']
-    input_nodes = [cast(InputNode, node) for node in node_list if node.ntype == 'input']
-    input_playlist_names = {spotipy_client.playlist(node.get_required_prop('uri'))['name']
-                            for node in input_nodes
-                            if node.source_type() == 'playlist'}
-    output_playlist_names = {node.playlist_name() for node in output_nodes}
+    output_playlist_names = {cast(OutputNode, node).playlist_name()
+                             for node in node_list
+                             if isinstance(node, OutputNode)}
+    input_playlist_names = {spotipy_client.playlist(cast(PlaylistNode, node).playlist_uri())['name']
+                            for node in node_list
+                            if isinstance(node, PlaylistNode)}
     intersection = input_playlist_names.intersection(output_playlist_names)
     if len(intersection) != 0:
         raise ValueError(f'Found an invalid scenario definition; the following playlists are both input '
@@ -49,24 +50,23 @@ class Node(ABC):
     def __init__(self, **kwargs):
         self.spotipy: Spotify = kwargs['spotipy_client']
         self.nid: str = kwargs['node_id']
-        self.ntype: str = kwargs['type']
         self.__fulldict: Dict = kwargs
 
     @staticmethod
     def from_dict(spotipy_client: Spotify, node_id: str, node_dict: Dict):
         if 'type' not in node_dict:
             raise ValueError(f'Invalid definition for node <{node_id}>; unable to find "type" specifier')
-        ntype = node_dict['type']
-        typeless_dict = node_dict.copy()
-        del typeless_dict['type']
-        if ntype == 'input':
-            return InputNode.from_dict(spotipy_client=spotipy_client, node_id=node_id, **typeless_dict)
-        elif ntype == 'output':
-            return OutputNode(spotipy_client=spotipy_client, node_id=node_id, **typeless_dict)
-        elif ntype == 'template':
-            return TemplateNode(spotipy_client=spotipy_client, node_id=node_id, **typeless_dict)
-        else:
-            return LogicNode.from_dict(spotipy_client=spotipy_client, node_id=node_id, node_dict=node_dict)
+        ntype = node_dict.pop('type')
+
+        def all_subclasses(cls):
+            return set(cls.__subclasses__()) \
+                .union([s for c in cls.__subclasses__() for s in all_subclasses(c)])
+        concrete_node_classes = [nclass for nclass in all_subclasses(Node) if not inspect.isabstract(nclass)]
+        matched_node_class = [nclass for nclass in concrete_node_classes if nclass.ntype() == ntype]
+        if len(matched_node_class) != 1:
+            raise ValueError(f'Found {len(matched_node_class)} node types matching type `{ntype}` from full list: '
+                             f'{",".join([str(cnc) for cnc in concrete_node_classes])}')
+        return matched_node_class[0](spotipy_client=spotipy_client, node_id=node_id, **node_dict)
 
     @abc.abstractmethod
     def tracks(self) -> List[TrackDict]:
@@ -75,7 +75,7 @@ class Node(ABC):
     def resolve_inputs(self, node_dict: Dict[str, Node]) -> None:
         pass
 
-    def resolve_template(self) -> Dict[str, 'Node']:
+    def resolve_template(self) -> Dict[str, Node]:
         return {self.nid: self}
 
     def has_prop(self, prop_key: str):
@@ -99,24 +99,16 @@ class Node(ABC):
         playlist_resp['tracks']['items'] = tracklist
         return playlist_resp
 
+    @classmethod
+    @abc.abstractmethod
+    def ntype(cls):
+        pass
+
 
 class InputNode(Node, ABC):
-    @staticmethod
-    def from_dict(spotipy_client: Spotify, node_id: str, node_dict: Dict):
-        if 'source_type' not in node_dict:
-            raise ValueError(f'Invalid definition for node <{node_id}>; unable to find "source_type" specifier')
-        source_type = node_dict['source_type']
-        if source_type == 'playlist':
-            return PlaylistNode(spotipy_client=spotipy_client, node_id=node_id, **node_dict)
-        else:
-            raise ValueError(f'Unsupported source_type for a input node <{node_id}>: {source_type}')
-
     def __init__(self, **kwargs):
-        super().__init__(**kwargs, type='input')
+        super().__init__(**kwargs)
         self.track_cache = None
-
-    def source_type(self) -> str:
-        return self.get_required_prop('source_type')
 
     @abc.abstractmethod
     def _fetch_tracks_impl(self) -> List[NestedStrDict]:
@@ -132,13 +124,24 @@ class PlaylistNode(InputNode):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+    @classmethod
+    def ntype(cls):
+        return 'playlist'
+
+    def playlist_uri(self):
+        return self.get_required_prop('uri')
+
     def _fetch_tracks_impl(self) -> List[NestedStrDict]:
-        return self._playlist_all_items(self.get_required_prop('uri'))['tracks']['items']
+        return self._playlist_all_items(self.playlist_uri())['tracks']['items']
 
 
 class LikedSongsNode(InputNode):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+    @classmethod
+    def ntype(cls):
+        return 'all_liked_songs'
 
     def _fetch_tracks_impl(self) -> List[NestedStrDict]:
         # TODO
@@ -157,12 +160,16 @@ class NonleafNode(Node, ABC):
 
 class OutputNode(NonleafNode):
     def __init__(self, **kwargs):
-        super().__init__(**kwargs, type='output')
+        super().__init__(**kwargs)
+
+    @classmethod
+    def ntype(cls):
+        return 'output'
 
     def input_node(self):
         if len(self.inputs) != 1:
             raise ValueError(f'Unexpected number of inputs for output node <{self.nid}>')
-        if self.inputs[0].ntype != 'dedup':
+        if self.inputs[0].ntype() != 'dedup':
             raise ValueError(f'Duplicates are not currently supported, so all output nodes must be preceded by '
                              f'a dedup node.')
         return self.inputs[0]
@@ -294,30 +301,12 @@ class OutputNode(NonleafNode):
 
 
 class LogicNode(NonleafNode, ABC):
-    @staticmethod
-    def from_dict(spotipy_client: Spotify, node_id: str, node_dict: Dict):
-        if 'type' not in node_dict:
-            raise ValueError(f'Invalid definition for node <{node_id}>; unable to find "type" specifier')
-        ntype = node_dict['type']
-        typeless_dict = node_dict.copy()
-        del typeless_dict['type']
-        if ntype == 'combiner':
-            return PlaylistNode(spotipy_client=spotipy_client, node_id=node_id, **typeless_dict)
-        elif ntype == 'sort':
-            return SortNode(spotipy_client=spotipy_client, node_id=node_id, **typeless_dict)
-        elif ntype == 'dedup':
-            return DeduplicateNode(spotipy_client=spotipy_client, node_id=node_id, **typeless_dict)
-        elif ntype == 'liked':
-            return LikedNode(spotipy_client=spotipy_client, node_id=node_id, **typeless_dict)
-        else:
-            raise ValueError(f'Unsupported type for a logic node <{node_id}>: {ntype}')
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
     def _assert_input_count(self, expected_count):
         if len(self.inputs) != expected_count:
-            raise ValueError(f'Nodes of type {self.ntype} are expected to have {expected_count} inputs, but '
+            raise ValueError(f'Nodes of type {self.ntype()} are expected to have {expected_count} inputs, but '
                              f'node <{self.nid}> had {len(self.inputs)}')
 
     def _get_single_input_tracks(self):
@@ -327,7 +316,11 @@ class LogicNode(NonleafNode, ABC):
 
 class CombinerNode(LogicNode):
     def __init__(self, **kwargs):
-        super().__init__(**kwargs, type='combiner')
+        super().__init__(**kwargs)
+
+    @classmethod
+    def ntype(cls):
+        return 'combiner'
 
     def tracks(self):
         return functools.reduce(lambda l1, l2: l1 + l2, map(lambda i: i.tracks(), self.inputs))
@@ -335,7 +328,11 @@ class CombinerNode(LogicNode):
 
 class SortNode(LogicNode):
     def __init__(self, **kwargs):
-        super().__init__(**kwargs, type='sort')
+        super().__init__(**kwargs)
+
+    @classmethod
+    def ntype(cls):
+        return 'sort'
 
     def tracks(self):
         sort_key = self.get_required_prop('sort_key')
@@ -360,7 +357,11 @@ class SortNode(LogicNode):
 
 class DeduplicateNode(LogicNode):
     def __init__(self, **kwargs):
-        super().__init__(**kwargs, type='dedup')
+        super().__init__(**kwargs)
+
+    @classmethod
+    def ntype(cls):
+        return 'dedup'
 
     def tracks(self):
         tracks_by_uri = {}
@@ -373,8 +374,12 @@ class DeduplicateNode(LogicNode):
 
 class LikedNode(LogicNode):
     def __init__(self, **kwargs):
-        super().__init__(**kwargs, type='liked')
+        super().__init__(**kwargs)
         self._track_cache = None
+
+    @classmethod
+    def ntype(cls):
+        return 'liked'
 
     def tracks(self):
         if self._track_cache is None:
@@ -393,70 +398,86 @@ class LikedNode(LogicNode):
         return self._track_cache
 
 
-class TemplateNode(Node):
+class TemplateNode(Node, ABC):
     def __init__(self, **kwargs):
-        super().__init__(**kwargs, type='template')
-        self.template_name = self.get_required_prop('template_name')
+        super().__init__(**kwargs)
 
     def tracks(self):
         raise ValueError(f'Cannot fetch tracks directly from a template node')
 
+
+class CombineSortDedupOutput(TemplateNode):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    @classmethod
+    def ntype(cls):
+        return 'combine_sort_dedup_output'
+
     def resolve_template(self):
-        if self.template_name == 'combine_sort_dedup_output':
-            # Required props: [input_uris or input_nodes], sort_key, output_playlist_name
-            node_list = list()
-            if self.has_prop('input_uris'):
-                for idx, input_uri in enumerate(self.get_required_prop('input_uris')):
-                    node_list.append(PlaylistNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_in_{idx}',
-                                                  source_type='playlist', uri=input_uri))
-                input_node_ids = [node.nid for node in node_list]
-            else:
-                input_node_ids = self.get_required_prop('input_nodes')
-            node_list.append(CombinerNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_combine',
-                                          inputs=input_node_ids))
-            node_list.append(SortNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_sort',
-                                      inputs=[f'{self.nid}_combine'],
-                                      sort_key=self.get_required_prop('sort_key')))
-            node_list.append(DeduplicateNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_dedup',
-                                             inputs=[f'{self.nid}_sort']))
-            node_list.append(OutputNode(spotipy_client=self.spotipy, node_id=f'{self.nid}',
-                                        inputs=[f'{self.nid}_dedup'],
-                                        playlist_name=self.get_required_prop('output_playlist_name')))
-            return {node.nid: node for node in node_list}
-        if self.template_name == 'time_genre_combiner':
-            # Required props: genres, times, <time>_<genre>_uri for all (genre, time), output_name_format
-            #    genres - list of genre names
-            #    times - list of time period names
-            #    <time>_<genre>_uri - playlist uri for the combination of the given time and genre
-            #    output_name_format - format string for the output playlist name,
-            #                         <GENRE> will be replaced with the genre and <TIME> will be replaced with the time
-            node_list = list()
-            genres = self.get_required_prop('genres')
-            times = self.get_required_prop('times')
-            for genre in genres:
-                for time in times:
-                    node_list.append(PlaylistNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_{time}_{genre}',
-                                                  source_type='playlist',
-                                                  uri=self.get_required_prop(f'{time}_{genre}_uri')))
-
-            def get_output_name(time, genre):
-                return re.sub(r'\s+', ' ', self.get_required_prop('output_name_format')
-                              .replace('<TIME>', time).replace('<GENRE>', genre)).strip()
-
-            for time in times:
-                node_list.append(TemplateNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_{time}_all',
-                                              template_name='combine_sort_dedup_output',
-                                              sort_key='added_at', output_playlist_name=get_output_name(time, ''),
-                                              input_nodes=[f'{self.nid}_{time}_{genre}' for genre in genres]))
-            for genre in genres:
-                node_list.append(TemplateNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_{genre}_all',
-                                              template_name='combine_sort_dedup_output',
-                                              sort_key='added_at', output_playlist_name=get_output_name('', genre),
-                                              input_nodes=[f'{self.nid}_{time}_{genre}' for time in times]))
-            node_list.append(TemplateNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_all',
-                                          template_name='combine_sort_dedup_output',
-                                          sort_key='added_at', output_playlist_name=get_output_name('All', ''),
-                                          input_nodes=[f'{self.nid}_{time}_all' for time in times]))
-            return {node.nid: node for node in node_list}
+        # Required props: [input_uris or input_nodes], sort_key, output_playlist_name
+        node_list = list()
+        if self.has_prop('input_uris'):
+            for idx, input_uri in enumerate(self.get_required_prop('input_uris')):
+                node_list.append(PlaylistNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_in_{idx}',
+                                              source_type='playlist', uri=input_uri))
+            input_node_ids = [node.nid for node in node_list]
         else:
-            raise ValueError(f'Unsupported template name for <{self.nid}>: {self.template_name}')
+            input_node_ids = self.get_required_prop('input_nodes')
+        node_list.append(CombinerNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_combine',
+                                      inputs=input_node_ids))
+        node_list.append(SortNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_sort',
+                                  inputs=[f'{self.nid}_combine'],
+                                  sort_key=self.get_required_prop('sort_key')))
+        node_list.append(DeduplicateNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_dedup',
+                                         inputs=[f'{self.nid}_sort']))
+        node_list.append(OutputNode(spotipy_client=self.spotipy, node_id=f'{self.nid}',
+                                    inputs=[f'{self.nid}_dedup'],
+                                    playlist_name=self.get_required_prop('output_playlist_name')))
+        return {node.nid: node for node in node_list}
+
+
+class TimeGenreCombiner(TemplateNode):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    @classmethod
+    def ntype(cls):
+        return 'time_genre_combiner'
+
+    def resolve_template(self):
+        # Required props: genres, times, <time>_<genre>_uri for all (genre, time), output_name_format
+        #    genres - list of genre names
+        #    times - list of time period names
+        #    <time>_<genre>_uri - playlist uri for the combination of the given time and genre
+        #    output_name_format - format string for the output playlist name,
+        #                         <GENRE> will be replaced with the genre and <TIME> will be replaced with the time
+        node_list = list()
+        genres = self.get_required_prop('genres')
+        times = self.get_required_prop('times')
+
+        def get_output_name(time, genre):
+            return re.sub(r'\s+', ' ', self.get_required_prop('output_name_format')
+                          .replace('<TIME>', time).replace('<GENRE>', genre)).strip()
+
+        for genre in genres:
+            for time in times:
+                node_list.append(PlaylistNode(spotipy_client=self.spotipy, node_id=f'{self.nid}_{time}_{genre}',
+                                              source_type='playlist',
+                                              uri=self.get_required_prop(f'{time}_{genre}_uri')))
+
+        for time in times:
+            node_list.append(
+                CombineSortDedupOutput(spotipy_client=self.spotipy, node_id=f'{self.nid}_{time}_all',
+                                       sort_key='added_at', output_playlist_name=get_output_name(time, ''),
+                                       input_nodes=[f'{self.nid}_{time}_{genre}' for genre in genres]))
+        for genre in genres:
+            node_list.append(
+                CombineSortDedupOutput(spotipy_client=self.spotipy, node_id=f'{self.nid}_{genre}_all',
+                                       sort_key='added_at', output_playlist_name=get_output_name('', genre),
+                                       input_nodes=[f'{self.nid}_{time}_{genre}' for time in times]))
+        node_list.append(
+            CombineSortDedupOutput(spotipy_client=self.spotipy, node_id=f'{self.nid}_all',
+                                   sort_key='added_at', output_playlist_name=get_output_name('All', ''),
+                                   input_nodes=[f'{self.nid}_{time}_all' for time in times]))
+        return {node.nid: node for node in node_list}

@@ -118,6 +118,19 @@ def _stop():
 
 
 @daemon.command()
+def show():
+    """Show information on whether there is currently a running daemon."""
+    curr_pid = pidlockfile.read_pid_from_pidfile(utils.global_conf.daemon_pidfile)
+    if curr_pid is None:
+        click.echo(f'No daemon currently running. Checked for PID file at: {utils.global_conf.daemon_pidfile}')
+    elif not psutil.pid_exists(curr_pid):
+        click.echo(f'No daemon is running, but found stale PID file with PID {curr_pid}. Deleting stale file.')
+        pidlockfile.remove_existing_pidfile(utils.global_conf.daemon_pidfile)
+    else:
+        click.echo(f'Daemon currently running at PID {curr_pid}')
+
+
+@daemon.command()
 def restart():
     """Stop an existing background process, if one exists, and start a new one."""
     _stop()
@@ -188,7 +201,7 @@ def perform_update_iteration(app_conf: AppConfig, user_conf_files: List[str]):
                 node_list = nodes.resolve_node_list(spotipy_client, scenario['nodes'].items())
             except ValueError as err:
                 raise ValueError(f'Unable to parse definition of {scenario["name"]}: {err}')
-            output_nodes = [cast(OutputNode, node) for node in node_list if node.ntype == 'output']
+            output_nodes = [cast(OutputNode, node) for node in node_list if isinstance(node, OutputNode)]
             if len(output_nodes) == 0:
                 raise ValueError(f'Unable to find any output nodes for {scenario["name"]}')
             try:
