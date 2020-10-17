@@ -6,6 +6,7 @@ import inspect
 import logging
 import re
 from abc import ABC
+from datetime import datetime, timedelta
 from typing import Dict, Iterable, List, Union, cast
 
 import spotipy
@@ -151,7 +152,9 @@ class LikedSongsNode(InputNode):
 class NonleafNode(Node, ABC):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.input_nids: List[str] = kwargs['inputs']
+        self.input_nids: List[Union[str, None]] = kwargs.get('inputs', [kwargs.get('input')])
+        if len(self.input_nids) == 1 and self.input_nids[0] is None:
+            raise ValueError(f'No input found for node <{self.nid}>. Looked for "input" and "inputs"')
         self.inputs: List[Node] = list()
 
     def resolve_inputs(self, node_dict: Dict[str, Node]):
@@ -270,7 +273,7 @@ class OutputNode(NonleafNode):
                                                                       snapshot_id=snapshot_id)['snapshot_id']
                     # Sometimes snapshot_id ends up being a dict. It's not clear why, but it is necessary to then
                     # go one level deeper to extract the real snapshot_id.
-                    if type(snapshot_id) == Dict:
+                    if isinstance(snapshot_id, Dict):
                         snapshot_id = snapshot_id['snapshot_id']
                 except spotipy.SpotifyException as se:
                     logger.error(f'Encountered error while attempting to reorder items. playlist_uri={playlist_uri}, '
@@ -353,6 +356,50 @@ class SortNode(LogicNode):
                 raise ValueError(f'sort node <{self.nid}> unable to find sort key <{sort_key}> in track: {t}')
 
         return sorted(self._get_single_input_tracks(), key=key_fn, reverse=sort_desc)
+
+
+class FilterNode(LogicNode, ABC):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def tracks(self):
+        return [track for track in self._get_single_input_tracks() if self.track_predicate(track)]
+
+    @abc.abstractmethod
+    def track_predicate(self, track):
+        pass
+
+
+class FilterEvalNode(FilterNode):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    @classmethod
+    def ntype(cls):
+        return 'filter_eval'
+
+    def tracks(self):
+        return [track for track in self._get_single_input_tracks() if self.track_predicate(track)]
+
+    def track_predicate(self, track):
+        eval(self.get_required_prop('predicate'), {'t': track})
+
+
+class RelativeTimeAddedNode(FilterNode):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    @classmethod
+    def ntype(cls):
+        return 'filter_added_date'
+
+    def track_predicate(self, track):
+        added_date = datetime.strptime(track['added_at'], '%Y-%m-%dT%H:%M:%SZ')
+        cutoff_date = datetime.now() - timedelta(days=int(self.get_required_prop('days_ago')))
+        if self.get_optional_prop('keep_before', False):
+            return cutoff_date > added_date
+        else:
+            return added_date > cutoff_date
 
 
 class DeduplicateNode(LogicNode):
