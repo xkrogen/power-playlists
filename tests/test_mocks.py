@@ -1,4 +1,5 @@
 import copy
+from collections import defaultdict
 from typing import Dict, List
 
 import pytest
@@ -28,7 +29,7 @@ class MockClient(spotipy.Spotify):
         ]
         if other_playlists is not None:
             self.playlists.extend(other_playlists)
-        self.api_call_count = 0
+        self.api_call_counts = defaultdict(lambda: 0)
 
     def _get_playlist(self, uri=None, playlist_id=None) -> Dict:
         if uri is not None:
@@ -39,7 +40,7 @@ class MockClient(spotipy.Spotify):
             raise ValueError(f'Must supply either uri or playlist_id')
 
     def current_user_playlists(self, offset=0, limit=50):
-        self.__increment_call_count()
+        self.__increment_call_count('current_user_playlists')
         return {'items': self.playlists[offset:offset+limit], 'total': len(self.playlists)}
 
     def __get_playlist_page(self, uri, limit, offset):
@@ -49,20 +50,20 @@ class MockClient(spotipy.Spotify):
         playlist_copy['tracks']['limit'] = limit
         return playlist_copy
 
-    def __increment_call_count(self):
-        self.api_call_count += 1
+    def __increment_call_count(self, api_name: str):
+        self.api_call_counts[api_name] = self.api_call_counts[api_name] + 1
 
     def playlist(self, uri, fields=None, market=None, additional_types=("track",)):
-        self.__increment_call_count()
+        self.__increment_call_count('playlist')
         return self.__get_playlist_page(uri, 100, 0)
 
     def playlist_items(self, playlist_id, fields=None, limit=100, offset=0, market=None,
                        additional_types=("track", "episode")):
-        self.__increment_call_count()
+        self.__increment_call_count('playlist_items')
         return self.__get_playlist_page(playlist_id, limit, offset)['tracks']
 
     def playlist_remove_specific_occurrences_of_items(self, uri, removal_dict_list, snapshot_id=None):
-        self.__increment_call_count()
+        self.__increment_call_count('playlist_remove_specific_occurrences_of_items')
         playlist = self._get_playlist(uri=uri)
         items = playlist['tracks']['items']
         removal_cnt = 0
@@ -79,7 +80,7 @@ class MockClient(spotipy.Spotify):
         return {'snapshot_id': 'ignored'}
 
     def playlist_reorder_items(self, uri, range_start, insert_before, range_length=1, snapshot_id=None):
-        self.__increment_call_count()
+        self.__increment_call_count('playlist_reorder_items')
         playlist = self._get_playlist(uri=uri)
         items: List = playlist['tracks']['items']
         if range_start == insert_before:
@@ -96,7 +97,7 @@ class MockClient(spotipy.Spotify):
         return {'snapshot_id': 'ignored'}
 
     def playlist_add_items(self, uri, item_uris, position=None, snapshot_id=None):
-        self.__increment_call_count()
+        self.__increment_call_count('playlist_add_items')
         playlist = self._get_playlist(uri=uri)
         curr_items: List = playlist['tracks']['items']
         position = len(curr_items) if position is None else position
@@ -108,7 +109,7 @@ class MockClient(spotipy.Spotify):
         return {'snapshot_id': 'ignored'}
 
     def playlist_change_details(self, playlist_id, name=None, public=None, collaborative=None, description=None):
-        self.__increment_call_count()
+        self.__increment_call_count('playlist_change_details')
         playlist = self._get_playlist(playlist_id=playlist_id)
         if public is not None:
             playlist['public'] = public

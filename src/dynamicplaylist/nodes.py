@@ -112,10 +112,10 @@ class InputNode(Node, ABC):
         self.track_cache = None
 
     @abc.abstractmethod
-    def _fetch_tracks_impl(self) -> List[NestedStrDict]:
+    def _fetch_tracks_impl(self) -> List[TrackDict]:
         pass
 
-    def tracks(self) -> List[NestedStrDict]:
+    def tracks(self):
         if self.track_cache is None:
             self.track_cache = self._fetch_tracks_impl()
         return self.track_cache
@@ -132,7 +132,7 @@ class PlaylistNode(InputNode):
     def playlist_uri(self):
         return self.get_required_prop('uri')
 
-    def _fetch_tracks_impl(self) -> List[NestedStrDict]:
+    def _fetch_tracks_impl(self):
         return self._playlist_all_items(self.playlist_uri())['tracks']['items']
 
 
@@ -144,7 +144,7 @@ class LikedSongsNode(InputNode):
     def ntype(cls):
         return 'all_liked_songs'
 
-    def _fetch_tracks_impl(self) -> List[NestedStrDict]:
+    def _fetch_tracks_impl(self):
         # TODO
         raise NotImplementedError("LikedSongs input node not yet implemented")
 
@@ -214,13 +214,23 @@ class OutputNode(NonleafNode):
 
         # create set of new/updated/removed/etc. tracks
         expected_output_track_uris = [track['track']['uri'] for track in self.tracks()]
-        expected_output_track_uri_set = set(expected_output_track_uris)
-        existing_track_uri_set = set(existing_track_uris)
+
         # Step 1: Remove tracks that shouldn't be there at all
-        required_removals = [{'uri': uri, 'positions': [idx]}
-                             for idx, uri in enumerate(existing_track_uris)
-                             if uri not in expected_output_track_uri_set]
-        # TODO some of this logic is going to have trouble with duplicates currently...
+        expected_output_track_uri_dict: Dict[str, int] = dict()
+        for track in self.tracks():
+            uri = track['track']['uri']
+            expected_output_track_uri_dict[uri] = expected_output_track_uri_dict.get(uri, 0) + 1
+        required_removals: List[Dict[str, Union[str, List[str]]]] = list()
+        remaining_output_track_uri_dict = expected_output_track_uri_dict.copy()
+        expected_output_track_uris_after_removals: List[str] = list()
+        for idx, uri in enumerate(existing_track_uris):
+            remaining = remaining_output_track_uri_dict.get(uri, 0)
+            if remaining == 0:
+                required_removals.append({'uri': uri, 'positions': [idx]})
+            else:
+                remaining_output_track_uri_dict[uri] = remaining - 1
+                expected_output_track_uris_after_removals.append(uri)
+
         if len(required_removals) > 0:
             tracks_removed = 0
             # For pagination of removals, start at the end and work backwards to avoid changing the indices
@@ -235,37 +245,44 @@ class OutputNode(NonleafNode):
                                                                   snapshot_id=playlist['snapshot_id'])['snapshot_id']
                 tracks_removed += len(tracks_to_remove)
             is_updated = True
-            self.verify_playlist_contents([uri for uri in existing_track_uris if uri in expected_output_track_uri_set],
-                                          playlist_uri, 'item removal')
+            self.verify_playlist_contents(expected_output_track_uris_after_removals, playlist_uri, 'item removal')
 
         # Step 2: Add new tracks
-        new_track_uris = [uri for uri in expected_output_track_uris if uri not in existing_track_uri_set]
-        if len(new_track_uris) > 0:
+        existing_track_uri_dict: Dict[str, int] = dict()
+        for uri in existing_track_uris:
+            existing_track_uri_dict[uri] = existing_track_uri_dict.get(uri, 0) + 1
+        required_addition_uris: List[str] = list()
+        remaining_existing_track_uri_dict = existing_track_uri_dict.copy()
+        for uri in expected_output_track_uris:
+            remaining = remaining_existing_track_uri_dict.get(uri, 0)
+            if remaining == 0:
+                required_addition_uris.append(uri)
+            else:
+                remaining_existing_track_uri_dict[uri] = remaining - 1
+
+        if len(required_addition_uris) > 0:
             tracks_added = 0
-            while tracks_added < len(new_track_uris):
-                tracks_to_add = new_track_uris[tracks_added:tracks_added + Constants.PAGINATION_LIMIT]
+            while tracks_added < len(required_addition_uris):
+                tracks_to_add = required_addition_uris[tracks_added:tracks_added + Constants.PAGINATION_LIMIT]
                 logger.debug(f'Playlist [{self.playlist_name()}]: Adding tracks: {tracks_to_add}')
                 snapshot_id = self.spotipy.playlist_add_items(playlist_uri, tracks_to_add)
                 tracks_added += len(tracks_to_add)
-            expected_ordering = [uri for uri in existing_track_uris
-                                 if uri in expected_output_track_uri_set] + new_track_uris
+            expected_ordering = expected_output_track_uris_after_removals + required_addition_uris
             is_updated = True
             self.verify_playlist_contents(expected_ordering, playlist_uri, 'item addition')
 
         # Step 3: Reorder tracks currently in the playlist to match the expected order
-        current_track_uris = [uri for uri in existing_track_uris if uri in expected_output_track_uri_set] + \
-                             new_track_uris
-        if set(current_track_uris) != expected_output_track_uri_set \
-                or len(current_track_uris) != len(expected_output_track_uris):
-            raise ValueError(f'TODO')
+        current_track_uris = expected_output_track_uris_after_removals + required_addition_uris
+        if len(current_track_uris) != len(expected_output_track_uris):
+            raise ValueError(f'Expected to find {len(expected_output_track_uris)} track URIs '
+                             f'but found only {len(current_track_uris)}')
         elif current_track_uris != expected_output_track_uris:
-            # TODO can't handle duplicates
             while current_track_uris != expected_output_track_uris:
                 target_idx, target_uri = next((target_idx, uri)
                                               for target_idx, uri in enumerate(expected_output_track_uris)
                                               if current_track_uris[target_idx] != uri)
                 start_idx = current_track_uris.index(target_uri)
-                logger.debug(f'Playlist [{self.playlist_name()}]: Swapping pos {start_idx} into pos {target_idx} '
+                logger.debug(f'Playlist [{self.playlist_name()}]: Inserting pos {start_idx} into pos {target_idx} '
                              f'(target song uri <{target_uri}>)')
                 # TODO attempt to group ranges to reduce API call volume
                 try:
@@ -275,7 +292,7 @@ class OutputNode(NonleafNode):
                     # go one level deeper to extract the real snapshot_id.
                     if isinstance(snapshot_id, Dict):
                         snapshot_id = snapshot_id['snapshot_id']
-                except spotipy.SpotifyException as se:
+                except (KeyError, spotipy.SpotifyException) as se:
                     logger.error(f'Encountered error while attempting to reorder items. playlist_uri={playlist_uri}, '
                                  f'start_idx={start_idx}, target_idx={target_idx}, snapshot_id={snapshot_id}',
                                  exc_info=se)
@@ -283,6 +300,7 @@ class OutputNode(NonleafNode):
                 current_track_uris.insert(target_idx, current_track_uris.pop(start_idx))
             is_updated = True
             self.verify_playlist_contents(expected_output_track_uris, playlist_uri, 'reordering')
+
         if is_updated:
             logging.info(f'Updated playlist `{self.playlist_name()}` to reflect new changes, will verify output.')
             self.verify_playlist_contents(expected_output_track_uris, playlist_uri, 'updates')

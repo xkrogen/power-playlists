@@ -1,6 +1,5 @@
 Main todos:
 - Add a decent README.md
-- Handle duplicates, both for inputs and outputs, within nodes.py
 - Update playlist description with last update time
 - Check mod times on relevant playlists to see if updates can be skipped completely
 - Maintain cached info to cut down on unnecessary calls. In tandem with above.
