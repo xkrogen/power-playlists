@@ -169,16 +169,10 @@ class OutputNode(NonleafNode):
     def ntype(cls):
         return 'output'
 
-    def input_node(self):
+    def tracks(self):
         if len(self.inputs) != 1:
             raise ValueError(f'Unexpected number of inputs for output node <{self.nid}>')
-        if self.inputs[0].ntype() != 'dedup':
-            raise ValueError(f'Duplicates are not currently supported, so all output nodes must be preceded by '
-                             f'a dedup node.')
-        return self.inputs[0]
-
-    def tracks(self):
-        return self.input_node().tracks()
+        return self.inputs[0].tracks()
 
     def playlist_name(self) -> str:
         return self.get_required_prop('playlist_name')
@@ -521,9 +515,9 @@ class TimeGenreCombiner(TemplateNode):
         genres = self.get_required_prop('genres')
         times = self.get_required_prop('times')
 
-        def get_output_name(time, genre):
+        def get_output_name(otime, ogenre):
             return re.sub(r'\s+', ' ', self.get_required_prop('output_name_format')
-                          .replace('<TIME>', time).replace('<GENRE>', genre)).strip()
+                          .replace('<TIME>', otime).replace('<GENRE>', ogenre)).strip()
 
         for genre in genres:
             for time in times:

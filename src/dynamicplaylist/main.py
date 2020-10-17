@@ -33,7 +33,7 @@ def exit_message(*message_print_values, exit_code=1):
 @click.option('--appconf',
               default=None,
               type=click.Path(exists=True, dir_okay=False, resolve_path=True),
-              help='Path to an app configuration YAML file.')
+              help='Path to an app configuration YAML file. Defaults to ' + Constants.APP_CONFIG_FILE_DEFAULT)
 def cli(appconf: str):
     app_conf = AppConfig(appconf)
     utils.global_conf = app_conf
@@ -44,12 +44,15 @@ def cli(appconf: str):
               default=None,
               type=click.Path(exists=True, dir_okay=False, resolve_path=True),
               multiple=True,
-              help='Path to a user configuration YAML file. Can be specified multiple times.')
+              help='Path to a user configuration YAML file. Can be specified multiple times. '
+                   'If not specified, all files in the \'user_config_dir\' config are used. '
+                   f'This defaults to {Constants.USER_CONFIG_DIR_DEFAULT}')
 @click.option('--verifymode',
               default='DEFAULT',
               type=click.Choice([vm.name for vm in VerifyMode] + ['DEFAULT'], case_sensitive=False),
               help='Whether to perform verification on updated playlists to ensure they matches expectation. '
-                   'DEFAULT will use the default value from the configuration file, which is END unless configured. '
+                   'DEFAULT will use the default value from the configuration file, '
+                   f'which is {Constants.VERIFY_MODE_DEFAULT.name} unless configured. '
                    'END will verify playlist updates after all modifications are made. '
                    'INCREMENTAL will verify playlist updates after each individual updates. '
                    'This can be useful for debugging. NONE will never perform verification.')

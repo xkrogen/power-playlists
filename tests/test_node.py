@@ -120,7 +120,7 @@ class TestNode:
         assert len(resolved) == 4
         out_nodes = [cast(OutputNode, n) for n in resolved if type(n) == OutputNode]
         assert len(out_nodes) == 1
-        assert out_nodes[0].input_node().ntype() == 'dedup'
+        assert out_nodes[0].inputs[0].ntype() == 'dedup'
 
     def test_resolve_node_list_invalid(self):
         playlists = [{
