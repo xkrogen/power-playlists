@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import enum
 import os
-from typing import Dict, List, Union
+from typing import *
 
 import yaml
 
@@ -37,7 +37,7 @@ global_conf: Union[AppConfig, None] = None
 
 
 class AppConfig:
-    def __init__(self, app_config_path: Union[str, os.PathLike[str]] = None):
+    def __init__(self, app_config_path: Union[str, os.PathLike[str], None] = None):
         self.client_id = Constants.CLIENT_ID_DEFAULT
         self.client_redirect_uri = Constants.CLIENT_REDIRECT_URI_DEFAULT
         self.user_config_dir = Constants.USER_CONFIG_DIR_DEFAULT

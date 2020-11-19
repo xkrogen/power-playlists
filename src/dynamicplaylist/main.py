@@ -15,6 +15,7 @@ from daemon import DaemonContext, pidfile
 from lockfile import pidlockfile
 from spotipy.oauth2 import SpotifyPKCE
 
+from dynamicplaylist.spotify_client import SpotifyClient
 from . import nodes, utils
 from .nodes import OutputNode
 from .utils import AppConfig, Constants, UserConfig, VerifyMode
@@ -68,7 +69,7 @@ def run(userconf: List[str], verifymode: str):
         perform_update_iteration(app_conf, user_conf_files)
     except BaseException as e:
         logging.error(f'Fatal exception encountered while performing update. Exiting.', exc_info=e)
-        click.echo(f'Error countered while perform an update: {e}', err=True)
+        click.echo(f'Error encountered while performing an update: {e}', err=True)
         click.echo(f'Please see the log file for more details: {app_conf.log_file_path}', err=True)
         sys.exit(1)
 
@@ -175,7 +176,7 @@ def daemon_run_loop(app_conf: AppConfig):
                     perform_update_iteration(app_conf, app_conf.get_user_config_files())
                     logging.info(f'Update iteration completed, '
                                  f'sleeping for {app_conf.daemon_sleep_period_minutes} minutes...')
-                except ValueError:
+                except (ValueError, spotipy.SpotifyException):
                     logging.exception('Exception encountered while performing update. Continuing.')
                 except BaseException:
                     logging.exception('Fatal exception encountered while performing update. Exiting.')
@@ -198,20 +199,25 @@ def perform_update_iteration(app_conf: AppConfig, user_conf_files: List[str]):
                            scope=Constants.SECURITY_SCOPES,
                            username=user_conf.username)
         spotipy_client = spotipy.Spotify(auth_manager=pkce)
+        spotify_client = SpotifyClient(app_conf, spotipy_client)
 
-        for scenario in user_conf.scenario_dicts:
-            try:
-                node_list = nodes.resolve_node_list(spotipy_client, scenario['nodes'].items())
-            except ValueError as err:
-                raise ValueError(f'Unable to parse definition of {scenario["name"]}: {err}')
-            output_nodes = [cast(OutputNode, node) for node in node_list if isinstance(node, OutputNode)]
-            if len(output_nodes) == 0:
-                raise ValueError(f'Unable to find any output nodes for {scenario["name"]}')
-            try:
-                for out_node in output_nodes:
-                    out_node.create_or_update()
-            except ValueError as err:
-                raise ValueError(f'Invalid definition for {scenario["name"]}: {err}')
+        try:
+            for scenario in user_conf.scenario_dicts:
+                try:
+                    node_list = nodes.resolve_node_list(spotify_client, scenario['nodes'].items())
+                except ValueError as err:
+                    raise ValueError(f'Unable to parse definition of {scenario["name"]}: {err}')
+                output_nodes = [cast(OutputNode, node) for node in node_list if isinstance(node, OutputNode)]
+                if len(output_nodes) == 0:
+                    raise ValueError(f'Unable to find any output nodes for {scenario["name"]}')
+                try:
+                    for out_node in output_nodes:
+                        out_node.create_or_update()
+                except ValueError as err:
+                    raise ValueError(f'Invalid definition for {scenario["name"]}: {err}')
+        finally:
+            logging.info(f'Performed API calls: {dict(spotify_client.api_call_counts)}')
+            spotify_client.reset_api_call_counts()
 
 
 if __name__ == '__main__':

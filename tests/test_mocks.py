@@ -1,4 +1,6 @@
 import copy
+import random
+import string
 from collections import defaultdict
 from typing import Dict, List
 
@@ -13,19 +15,10 @@ class MockClient(spotipy.Spotify):
     def __init__(self, track_uri_list, other_playlists: List[Dict[str, str]] = None):
         if type(track_uri_list) == str:
             track_uri_list = track_uri_list.split(',')
-        self.playlists = [
-            {
-                'name': 'test_pl',
-                'uri': 'test_pl_uri',
-                'id': 'test_pl_id',
-                'tracks': {
-                    'items': [testutil.create_track_dict(uri) for uri in track_uri_list],
-                    'total': len(track_uri_list),
-                },
-                'public': False,
-                'description': 'foo',
-                'snapshot_id': 'ignored',
-            },
+        self.playlists = [testutil.create_playlist_dict(
+            'test_pl_uri',
+            [testutil.create_track_dict(uri) for uri in track_uri_list],
+            'test_pl')
         ]
         if other_playlists is not None:
             self.playlists.extend(other_playlists)
@@ -38,6 +31,9 @@ class MockClient(spotipy.Spotify):
             return [playlist for playlist in self.playlists if playlist['id'] == playlist_id][0]
         else:
             raise ValueError(f'Must supply either uri or playlist_id')
+
+    def current_user(self):
+        return testutil.get_user_dict('test_pl_owner')
 
     def current_user_playlists(self, offset=0, limit=50):
         self.__increment_call_count('current_user_playlists')
@@ -115,6 +111,13 @@ class MockClient(spotipy.Spotify):
             playlist['public'] = public
         if description is not None:
             playlist['description'] = description
+
+    def user_playlist_create(self, user_id, name, public=True, collaborative=False, description=""):
+        assert user_id == self.current_user()['id']
+        uri = ''.join(random.choice(string.ascii_lowercase) for ignored in range(30))
+        pdict = testutil.create_playlist_dict(uri, list(), name)
+        self.playlists.append(pdict)
+        return pdict
 
     def __del__(self):
         pass
