@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import enum
 import os
+import sys
 from typing import *
 
 import yaml
+
+
+def is_macos():
+    return sys.platform == 'darwin'
 
 
 class VerifyMode(enum.Enum):
@@ -32,6 +37,34 @@ class Constants:
     DAEMON_PIDFILE_DEFAULT = f'{APP_HOMEDIR}/daemon.pid'
     VERIFY_MODE_DEFAULT = VerifyMode.END
 
+    PACKAGE_HIERARCHICAL_NAME = 'io.github.xkrogen.spotify-dynamic-playlists'
+    MACOS_LAUNCHD_AGENT_DIR = '~/Library/LaunchAgents'
+    MACOS_LAUNCHD_PLIST_FILE = f'{MACOS_LAUNCHD_AGENT_DIR}/{PACKAGE_HIERARCHICAL_NAME}.plist'
+    MACOS_LAUNCHD_PLIST_FORMAT = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>{scriptid}</string>
+        <key>ProgramArguments</key>
+        <array>
+            <string>{entrypoint}</string>
+            {appconf_param_str}
+            <string>run</string>
+        </array>
+        <key>StandardErrorPath</key>
+        <string>{stderr}</string>
+        <key>StandardOutPath</key>
+        <string>{stdout}</string>
+        <key>ProcessType</key>
+        <string>Background</string>
+        <key>StartInterval</key>
+        <integer>{run_interval}</integer>
+    </dict>
+    </plist>
+    """
+
 
 global_conf: Union[AppConfig, None] = None
 
@@ -47,6 +80,7 @@ class AppConfig:
         self.daemon_sleep_period_minutes = Constants.DAEMON_SLEEP_PERIOD_MINUTES_DEFAULT
         self.daemon_pidfile = Constants.DAEMON_PIDFILE_DEFAULT
         self.verify_mode = Constants.VERIFY_MODE_DEFAULT
+        self.app_config_path = app_config_path
         if app_config_path is not None:
             if not os.path.isfile(app_config_path):
                 raise ValueError(f'Received invalid app_config_path: {app_config_path}')
@@ -67,11 +101,10 @@ class AppConfig:
         self.cache_dir = get_or_default('cache_dir', self.cache_dir)
         self.log_file_path = get_or_default('log_file_path', self.log_file_path)
         self.log_file_level = get_or_default('log_file_level', self.log_file_level)
-        self.log_file_append = get_or_default('log_file_append', self.log_file_append)
         self.daemon_sleep_period_minutes = get_or_default('daemon_sleep_period_minutes',
                                                           self.daemon_sleep_period_minutes)
         self.daemon_pidfile = get_or_default('daemon_pidfile', self.daemon_pidfile)
-        self.verify_mode = VerifyMode[get_or_default('verify_mode', self.verify_mode).upper()]
+        self.verify_mode = VerifyMode[get_or_default('verify_mode', self.verify_mode.name).upper()]
 
     def get_user_config_files(self, user_config_file_paths: List[str] = None) -> List[str]:
         if user_config_file_paths is not None and len(user_config_file_paths) != 0:

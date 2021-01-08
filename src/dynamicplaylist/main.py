@@ -2,6 +2,7 @@
 
 import logging
 import os
+import subprocess
 import sys
 import time
 from logging import handlers
@@ -74,9 +75,13 @@ def run(userconf: List[str], verifymode: str):
         sys.exit(1)
 
 
-@cli.group()
+@cli.group(
+    help='Control the background process to keep playlists updated.' + (
+            ' NOTE: On MacOS systems, the `launchd` commands provide a preferable alternative '
+            'to the self-managed daemon provided by the `daemon` commands.'
+            if utils.is_macos() else '')
+)
 def daemon():
-    """Control the background process to keep playlists updated."""
     pass
 
 
@@ -92,7 +97,7 @@ def _start():
         click.echo(f'Found existing daemon at PID {curr_pid}. Only one daemon is allowed to run concurrently. '
                    f'Please kill the previous one using "spotify-dynamic-playlists daemon stop".', err=True)
         sys.exit(1)
-    click.echo(f'Starting daemon...')
+    click.echo(f'Starting daemon with logging to {utils.global_conf.log_file_path}')
     context = DaemonContext(stdout=sys.stdout, stderr=sys.stderr)
     with context:
         daemon_run_loop(utils.global_conf)
@@ -139,6 +144,67 @@ def restart():
     """Stop an existing background process, if one exists, and start a new one."""
     _stop()
     _start()
+
+
+@cli.group(hidden=not utils.is_macos())
+def launchd():
+    """
+    Control integration with MacOS's `launchd` used for running spotify-dynamic-playlists in the background.
+    This is preferred over the `daemon` commands when running on a MacOS system.
+    """
+    pass
+
+
+@launchd.command('install')
+def launchd_install():
+    """Install the daemon to be run in the background via `launchd`. Re-install to update configs."""
+    assert utils.is_macos(), 'launchd can only be used on MacOS platform'
+    _launchd_uninstall()  # clear out any old service and plist files
+    entrypoint = os.path.abspath(sys.modules['__main__'].__file__)
+    appconf = utils.global_conf.app_config_path
+    appconf_str = '' if appconf is None else f'<string>--appconf</string><string>{appconf}</string>'
+    file_contents = Constants.MACOS_LAUNCHD_PLIST_FORMAT.format(
+        scriptid=Constants.PACKAGE_HIERARCHICAL_NAME,
+        entrypoint=entrypoint,
+        stderr=f'{utils.global_conf.log_file_path}.err',
+        stdout=f'{utils.global_conf.log_file_path}.out',
+        run_interval=utils.global_conf.daemon_sleep_period_minutes * 60,
+        appconf_param_str=appconf_str
+    )
+    click.echo(f'Installing plist file at "{Constants.MACOS_LAUNCHD_PLIST_FILE}" ...')
+    plist_path = os.path.expanduser(Constants.MACOS_LAUNCHD_PLIST_FILE)
+    with open(plist_path, mode='w') as f:
+        f.write(file_contents)
+    click.echo(f'Successfully installed plist file to run every '
+               f'{utils.global_conf.daemon_sleep_period_minutes} minutes')
+    subprocess.run(['launchctl', 'load', plist_path], check=True)
+    if not _launchd_service_exists():
+        raise ValueError(f'launchctl load appears to have been unsuccessful')
+    click.echo(f'Loaded plist into launchd')
+    click.echo(f'Logs will be sent to: {utils.global_conf.log_file_path}')
+
+
+@launchd.command('uninstall')
+def uninstall():
+    """Uninstall the daemon from running via `launchd`."""
+    assert utils.is_macos(), 'launchd can only be used on MacOS platform'
+    _launchd_uninstall()
+
+
+def _launchd_service_exists():
+    launchctl_print_cmd = ['launchctl', 'print', f'gui/{os.getuid()}/{Constants.PACKAGE_HIERARCHICAL_NAME}']
+    launchctl_print = subprocess.run(launchctl_print_cmd, capture_output=True)
+    return launchctl_print.returncode == 0
+
+
+def _launchd_uninstall():
+    plist_path = os.path.expanduser(Constants.MACOS_LAUNCHD_PLIST_FILE)
+    if _launchd_service_exists():
+        subprocess.run(['launchctl', 'unload', plist_path], check=True)
+        click.echo(f'Unloaded existing service from launchd')
+    if os.path.exists(plist_path):
+        os.remove(plist_path)
+        click.echo(f'Deleted launchd plist file at {Constants.MACOS_LAUNCHD_PLIST_FILE}')
 
 
 def init_logging(app_conf: AppConfig):
