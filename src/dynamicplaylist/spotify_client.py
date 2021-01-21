@@ -19,6 +19,7 @@ class SpotifyClient:
     def __init__(self, app_conf: AppConfig, spotipy_client: Spotify, enable_cache=True):
         self.spotipy = spotipy_client
         self.playlist_cache = PlaylistCache(app_conf, self.__load_playlist) if enable_cache else None
+        self.force_reload: bool = app_conf.cache_force
         self.current_user_playlist_cache: Dict[str, PlaylistDescription] = dict()
         self.current_user_playlists_loaded = False
         self.api_call_counts = defaultdict(lambda: 0)
@@ -50,7 +51,7 @@ class SpotifyClient:
     def playlist(self, playlist_uri: str, force_reload: bool = False) -> Playlist:
         if not self.playlist_cache:
             return self.__load_playlist(playlist_uri)
-        playlist, was_cached = self.playlist_cache.get_playlist(playlist_uri, force_reload)
+        playlist, was_cached = self.playlist_cache.get_playlist(playlist_uri, force_reload or self.force_reload)
         if not was_cached:
             return playlist
         playlist_desc = self.playlist_description(playlist_uri)
@@ -59,7 +60,7 @@ class SpotifyClient:
         return playlist
 
     def playlist_description(self, playlist_uri: str, force_reload: bool = False) -> PlaylistDescription:
-        if force_reload or playlist_uri not in self.current_user_playlist_cache:
+        if force_reload or self.force_reload or playlist_uri not in self.current_user_playlist_cache:
             self._increment_call_count('playlist')
             playlist_desc = PlaylistDescription(self.spotipy.playlist(playlist_uri))
             self.current_user_playlist_cache[playlist_uri] = playlist_desc
@@ -77,6 +78,18 @@ class SpotifyClient:
                 playlist_uri, offset=len(tracklist), limit=Constants.PAGINATION_LIMIT)
             tracklist.extend(additional_resp['items'])
         return Playlist(playlist_resp, [PlaylistTrack(track) for track in tracklist])
+
+    def saved_tracks(self) -> List[SavedTrack]:
+        self._increment_call_count('saved_tracks')
+        resp = self.spotipy.current_user_saved_tracks()
+        tracklist = resp['items']
+        total_tracks = int(resp['total'])
+        while len(tracklist) < total_tracks:
+            self._increment_call_count('saved_tracks')
+            additional_resp = self.spotipy.current_user_saved_tracks(
+                offset=len(tracklist), limit=Constants.PAGINATION_LIMIT)
+            tracklist.extend(additional_resp['items'])
+        return [SavedTrack(track) for track in tracklist]
 
     def create_playlist(
             self, playlist_name: str, description: str, public: bool = False, collaborative: bool = False) -> Playlist:
@@ -113,16 +126,20 @@ class SpotifyClient:
             playlist_uri, range_start, insert_before, range_length, snapshot_id=snapshot_id)
         return self.get_snapshot_id('playlist_reorder_items', response_dict)
 
-    def get_snapshot_id(self, api_name: str, response: Union[str, Dict], depth=0) -> str:
+    def get_snapshot_id(self, api_name: str, response: Union[str, Dict], original_resp: dict = None, depth=0) -> str:
         # Sometimes snapshot_id ends up being a dict. It's not clear why, but it is necessary to then
         # go one level deeper to extract the real snapshot_id.
         if isinstance(response, Dict):
             snapshot_id = response['snapshot_id']
             depth += 1
-            if depth > 1:
+            if depth > 2:
                 logger.info(f'Found unexpected response from {api_name}. Attempting to find snapshot_id '
-                            f'nested within the response: {response}')
-            snapshot_id = self.get_snapshot_id(f'{api_name}[\'snapshot_id\']', snapshot_id)
+                            f'nested {depth}-deep within the response: {response}\n'
+                            f'Full response:\n{original_resp}')
+            snapshot_id = self.get_snapshot_id(
+                f'{api_name}[\'snapshot_id\']', snapshot_id,
+                original_resp=response if original_resp is None else original_resp,
+                depth=depth)
         else:
             snapshot_id = response
         return snapshot_id
@@ -135,8 +152,7 @@ class SpotifyClient:
             self._increment_call_count('playlist_add_items')
             snapshot_id = self.get_snapshot_id(
                 'playlist_add_items',
-                self.spotipy.playlist_add_items(playlist_uri, tracks_to_add),
-                depth=1)
+                self.spotipy.playlist_add_items(playlist_uri, tracks_to_add))
             tracks_added += len(tracks_to_add)
         return snapshot_id
 
@@ -235,6 +251,7 @@ class Album(SpotifyWebObject):
         self.album_type: str = self._get_required_prop('album_type')  # 'album', 'single', 'compilation'
         self.artists: List[Artist] = [Artist(artist) for artist in self._get_required_prop('artists')]
         self.name: str = self._get_required_prop('name')
+        # TODO parse this into a proper date object
         self.release_date: str = self._get_required_prop('release_date')  # YYYY, YYYY-MM, or YYYY-MM-DD
 
 
@@ -276,9 +293,15 @@ class Playlist(PlaylistDescription):
         self.tracks: List[PlaylistTrack] = all_tracks
 
 
-# https://developer.spotify.com/documentation/web-api/reference/object-model/#playlist-track-object
-class PlaylistTrack(Track):
+# https://developer.spotify.com/documentation/web-api/reference/object-model/#saved-track-object
+class SavedTrack(Track):
     def __init__(self, obj_dict: Dict):
         super().__init__(obj_dict['track'])
-        self.added_by: User = obj_dict['added_by']
         self.added_at: datetime = datetime.strptime(obj_dict['added_at'], '%Y-%m-%dT%H:%M:%SZ')
+
+
+# https://developer.spotify.com/documentation/web-api/reference/object-model/#playlist-track-object
+class PlaylistTrack(SavedTrack):
+    def __init__(self, obj_dict: Dict):
+        super().__init__(obj_dict)
+        self.added_by: User = obj_dict['added_by']

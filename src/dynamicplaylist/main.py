@@ -58,11 +58,15 @@ def cli(appconf: str):
                    'END will verify playlist updates after all modifications are made. '
                    'INCREMENTAL will verify playlist updates after each individual updates. '
                    'This can be useful for debugging. NONE will never perform verification.')
-def run(userconf: List[str], verifymode: str):
+@click.option('--force/--no-force',
+              default=False,
+              help='Supply --force to ignore any caching and force-update all playlists.')
+def run(userconf: List[str], verifymode: str, force: bool):
     """Run a single iteration of the playlist updates."""
     app_conf = utils.global_conf
     if verifymode != 'DEFAULT':
         app_conf.verify_mode = VerifyMode[verifymode]
+    app_conf.cache_force = force
     init_logging(app_conf)
     user_conf_files = app_conf.get_user_config_files(userconf)
     click.echo(f'Performing update based on user conf file(s): {", ".join(user_conf_files)}')

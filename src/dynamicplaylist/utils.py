@@ -80,6 +80,7 @@ class AppConfig:
         self.daemon_sleep_period_minutes = Constants.DAEMON_SLEEP_PERIOD_MINUTES_DEFAULT
         self.daemon_pidfile = Constants.DAEMON_PIDFILE_DEFAULT
         self.verify_mode = Constants.VERIFY_MODE_DEFAULT
+        self.cache_force = False
         self.app_config_path = app_config_path
         if app_config_path is not None:
             if not os.path.isfile(app_config_path):

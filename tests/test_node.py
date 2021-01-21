@@ -161,3 +161,36 @@ class TestNode:
             assert sum([1 for n in resolved if n.ntype() == ntype]) == 1
         assert sum([1 for n in resolved if type(n) == PlaylistNode]) == 2
         assert [cast(OutputNode, n) for n in resolved if type(n) == OutputNode][0].playlist_name() == 'out_pl_name'
+
+    def test_resolve_node_list_dynamic_template(self):
+        playlists = [testutil.create_empty_playlist_dict(f'BAR-{i}') for i in range(0, 3)]
+        mock_client = MockClient([], playlists)
+        input_nodes = [('template', {
+            'type': 'dynamic_template',
+            'template': {
+                '{varA} foo': {
+                    'type': 'playlist',
+                    'uri': '{varB}'
+                },
+                '{varA} bar': {
+                    'type': 'output',
+                    'input': '{varA} foo',
+                    'playlist_name': '{varA} - {varB}'
+                }
+            },
+            'instances': [
+                {'varA': 'FOO-1', 'varB': 'BAR-1'},
+                {'varA': 'FOO-2', 'varB': 'BAR-2'}
+            ]
+        })]
+        sp_client = self.get_nocache_client(mock_client)
+        resolved_list = nodes.resolve_node_list(sp_client, input_nodes)
+        assert len(resolved_list) == 4
+
+        resolved = {node.nid: node for node in resolved_list}
+        for i in [1, 2]:
+            assert resolved[f'FOO-{i} foo'] == PlaylistNode(
+                spotify_client=sp_client, node_id=f'FOO-{i} foo', uri=f'BAR-{i}')
+            assert resolved[f'FOO-{i} bar'] == OutputNode(
+                spotify_client=sp_client, node_id=f'FOO-{i} bar', input=f'FOO-{i} foo',
+                playlist_name=f'FOO-{i} - BAR-{i}')
