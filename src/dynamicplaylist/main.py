@@ -262,6 +262,7 @@ def perform_update_iteration(app_conf: AppConfig, user_conf_files: List[str]):
     for f in user_conf_files:
         logging.info(f'Processing user conf file: {f}')
         user_conf = UserConfig(f)
+        fname = os.path.basename(f)
 
         pkce = SpotifyPKCE(client_id=app_conf.client_id,
                            redirect_uri=app_conf.client_redirect_uri,
@@ -272,21 +273,20 @@ def perform_update_iteration(app_conf: AppConfig, user_conf_files: List[str]):
         spotify_client = SpotifyClient(app_conf, spotipy_client)
 
         try:
-            for scenario in user_conf.scenario_dicts:
-                try:
-                    node_list = nodes.resolve_node_list(spotify_client, scenario['nodes'].items())
-                except ValueError as err:
-                    raise ValueError(f'Unable to parse definition of {scenario["name"]}: {err}')
-                output_nodes = [cast(OutputNode, node) for node in node_list if isinstance(node, OutputNode)]
-                if len(output_nodes) == 0:
-                    raise ValueError(f'Unable to find any output nodes for {scenario["name"]}')
-                try:
-                    for out_node in output_nodes:
-                        out_node.create_or_update()
-                except ValueError as err:
-                    raise ValueError(f'Invalid definition for {scenario["name"]}: {err}')
+            try:
+                node_list = nodes.resolve_node_list(spotify_client, user_conf.node_dicts.items())
+            except ValueError as err:
+                raise ValueError(f'Unable to parse definition of nodes for {fname}: {err}')
+            output_nodes = [cast(OutputNode, node) for node in node_list if isinstance(node, OutputNode)]
+            if len(output_nodes) == 0:
+                raise ValueError(f'Unable to find any output nodes for {fname}')
+            try:
+                for out_node in output_nodes:
+                    out_node.create_or_update()
+            except ValueError as err:
+                raise ValueError(f'Invalid definition for {fname}: {err}')
         finally:
-            logging.info(f'Performed API calls: {dict(spotify_client.api_call_counts)}')
+            logging.info(f'Performed API calls for {fname}: {dict(spotify_client.api_call_counts)}')
             spotify_client.reset_api_call_counts()
 
 

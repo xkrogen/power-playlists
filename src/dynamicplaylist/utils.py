@@ -128,6 +128,6 @@ class UserConfig:
         with open(user_config_path) as conf_file:
             conf_yaml = yaml.safe_load(conf_file)
         self.username: str = conf_yaml['username']
-        self.scenario_dicts: List[Dict[str, Dict[str, Union[str, List[str]]]]] = conf_yaml['scenarios']
-        if not issubclass(list, type(self.scenario_dicts)) or len(self.scenario_dicts) < 1:
-            raise ValueError(f'Invalid "scenarios" found within user conf file: {user_config_path}')
+        self.node_dicts: Dict[str, Dict[str, Any]] = conf_yaml['nodes']
+        if not isinstance(self.node_dicts, Dict) or len(self.node_dicts) < 1:
+            raise ValueError(f'Invalid node definition found within user conf file: {user_config_path}')
