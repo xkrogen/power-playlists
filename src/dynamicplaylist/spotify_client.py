@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Callable, Dict, List, Optional, Union
 
 import yaml
+from dateutil import parser, tz
 from spotipy import Spotify
 
 from .utils import AppConfig, Constants
@@ -77,7 +78,7 @@ class SpotifyClient:
             additional_resp = self.spotipy.playlist_items(
                 playlist_uri, offset=len(tracklist), limit=Constants.PAGINATION_LIMIT)
             tracklist.extend(additional_resp['items'])
-        return Playlist(playlist_resp, [PlaylistTrack(track) for track in tracklist])
+        return Playlist(playlist_resp, [PlaylistTrack(track) for track in tracklist if not track['is_local']])
 
     def saved_tracks(self) -> List[SavedTrack]:
         self._increment_call_count('saved_tracks')
@@ -251,8 +252,8 @@ class Album(SpotifyWebObject):
         self.album_type: str = self._get_required_prop('album_type')  # 'album', 'single', 'compilation'
         self.artists: List[Artist] = [Artist(artist) for artist in self._get_required_prop('artists')]
         self.name: str = self._get_required_prop('name')
-        # TODO parse this into a proper date object
-        self.release_date: str = self._get_required_prop('release_date')  # YYYY, YYYY-MM, or YYYY-MM-DD
+        # release_date is YYYY, YYYY-MM, or YYYY-MM-DD
+        self.release_date = parser.isoparse(self._get_required_prop('release_date'))
 
 
 # https://developer.spotify.com/documentation/web-api/reference/object-model/#track-object-simplified
@@ -297,7 +298,7 @@ class Playlist(PlaylistDescription):
 class SavedTrack(Track):
     def __init__(self, obj_dict: Dict):
         super().__init__(obj_dict['track'])
-        self.added_at: datetime = datetime.strptime(obj_dict['added_at'], '%Y-%m-%dT%H:%M:%SZ')
+        self.added_at: datetime = parser.isoparse(obj_dict['added_at']).astimezone(tz.tzutc()).replace(tzinfo=None)
 
 
 # https://developer.spotify.com/documentation/web-api/reference/object-model/#playlist-track-object

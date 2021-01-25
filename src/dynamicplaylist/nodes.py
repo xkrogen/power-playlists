@@ -16,10 +16,17 @@ from .utils import VerifyMode
 logger = logging.getLogger(__name__)
 
 
+def _load_nodes_from_dict(spotify_client: SpotifyClient,
+                          unresolved_node_list: Iterable[(str, Dict)]) -> Dict[str, Node]:
+    return {
+        node_id: Node.from_dict(spotify_client, node_id, node_dict)
+        for node_id, node_dict in unresolved_node_list
+    }
+
+
 def resolve_node_list(spotify_client: SpotifyClient,
                       unresolved_node_list: Iterable[(str, Dict)]) -> List[Node]:
-    node_map_unresolved = {node_id: Node.from_dict(spotify_client, node_id, node_dict)
-                           for node_id, node_dict in unresolved_node_list}
+    node_map_unresolved = _load_nodes_from_dict(spotify_client, unresolved_node_list)
     node_map = node_map_unresolved
     while len([n for n in node_map_unresolved.values() if isinstance(n, TemplateNode)]) > 0:
         node_map = {}
@@ -63,7 +70,7 @@ class Node(abc.ABC):
         matched_node_class = [nclass for nclass in concrete_node_classes if nclass.ntype() == ntype]
         if len(matched_node_class) != 1:
             raise ValueError(f'Found {len(matched_node_class)} node types matching type `{ntype}` from full list: '
-                             f'{",".join([str(cnc) for cnc in concrete_node_classes])}')
+                             f'{",".join([cnc.ntype() for cnc in concrete_node_classes])}')
         return matched_node_class[0](spotify_client=spotify_client, node_id=node_id, **node_dict)
 
     @abc.abstractmethod
@@ -142,31 +149,31 @@ class PlaylistNode(InputNode):
         return self.spotify.playlist(self.playlist_uri()).tracks
 
 
-class LikedSongsNode(InputNode):
+class LikedTracksNode(InputNode):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
     @classmethod
     def ntype(cls):
-        return 'all_liked_songs'
+        return 'liked_tracks'
 
     def _fetch_tracks_impl(self):
         return self.spotify.saved_tracks()
 
 
-class AllSongsNode(InputNode):
+class AllTracksNode(InputNode):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
     @classmethod
     def ntype(cls):
-        return 'all_songs'
+        return 'all_tracks'
 
     def _fetch_tracks_impl(self):
-        all_songs = self.spotify.saved_tracks()
+        all_tracks = self.spotify.saved_tracks()
         for playlist_desc in self.spotify.current_user_playlists():
-            all_songs.extend(self.spotify.playlist(playlist_desc.uri).tracks)
-        return all_songs
+            all_tracks.extend(self.spotify.playlist(playlist_desc.uri).tracks)
+        return all_tracks
 
 
 class NonleafNode(Node, abc.ABC):
@@ -348,7 +355,7 @@ class SortNode(LogicNode):
         sort_desc = bool(self.get_optional_prop('sort_desc', False))
 
         def key_fn(t: Track):
-            if sort_key == 'added_at':
+            if sort_key == 'time_added':
                 return Node._to_saved_track(t).added_at
             elif sort_key == 'name':
                 return t.name
@@ -391,26 +398,50 @@ class FilterEvalNode(FilterNode):
         eval(self.get_required_prop('predicate'), {'t': track})
 
 
-class DateAddedFilterNode(FilterNode):
+class TimeBasedFilterNode(FilterNode, abc.ABC):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    @abc.abstractmethod
+    def get_time(self, track: Track):
+        pass
+
+    def track_predicate(self, track: Track):
+        track_time = self.get_time(track)
+        if self.has_prop('days_ago'):
+            if self.has_prop('added_after') or self.has_prop('added_before'):
+                raise ValueError(f'Node <{self.nid}> cannot have both relative and fixed date specifiers')
+            cutoff_time = (datetime.now() - timedelta(days=int(self.get_required_prop('days_ago'))))
+        else:
+            cutoff_time = parser.isoparse(self.get_required_prop('cutoff_time'))
+        if self.get_optional_prop('keep_before', False):
+            return cutoff_time > track_time
+        else:
+            return track_time >= cutoff_time
+
+
+class AddedAtFilterNode(TimeBasedFilterNode):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
     @classmethod
     def ntype(cls):
-        return 'filter_added_date'
+        return 'filter_time_added'
 
-    def track_predicate(self, track: Track):
-        added_date = Node._to_saved_track(track).added_at.date()
-        if self.has_prop('days_ago'):
-            if self.has_prop('added_after') or self.has_prop('added_before'):
-                raise ValueError(f'Node <{self.nid}> cannot have both relative and fixed date specifiers')
-            cutoff_date = (datetime.now() - timedelta(days=int(self.get_required_prop('days_ago')))).date()
-        else:
-            cutoff_date = datetime.strptime(self.get_required_prop('cutoff_date'), '%Y-%m-%d').date()
-        if self.get_optional_prop('keep_before', False):
-            return cutoff_date > added_date
-        else:
-            return added_date > cutoff_date
+    def get_time(self, track: Track):
+        return Node._to_saved_track(track).added_at
+
+
+class ReleaseDateFilterNode(TimeBasedFilterNode):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    @classmethod
+    def ntype(cls):
+        return 'filter_release_date'
+
+    def get_time(self, track: Track):
+        return track.album.release_date
 
 
 class DeduplicateNode(LogicNode):
@@ -436,7 +467,7 @@ class LikedNode(LogicNode):
 
     @classmethod
     def ntype(cls):
-        return 'liked'
+        return 'is_liked'
 
     def tracks(self):
         if self._track_cache is None:
@@ -502,13 +533,13 @@ class DynamicTemplateNode(TemplateNode):
         #   all variables will be substituted by their values.
         template_nodes: Dict[str, Any] = self.get_required_prop('template')
         template_instances: List[Dict[str, Any]] = self.get_required_prop('instances')
-        node_list = list()
+        node_dict = {}
 
         for var_map in template_instances:
             instance_map = self.copy_replace(template_nodes, var_map)
-            node_list.extend(resolve_node_list(self.spotify, instance_map.items()))
+            node_dict.update(_load_nodes_from_dict(self.spotify, instance_map.items()))
 
-        return {node.nid: node for node in node_list}
+        return node_dict
 
 
 class CombineSortDedupOutput(TemplateNode):
@@ -543,5 +574,3 @@ class CombineSortDedupOutput(TemplateNode):
                                     inputs=[f'{self.nid}_dedup'],
                                     playlist_name=self.get_required_prop('output_playlist_name')))
         return {node.nid: node for node in node_list}
-
-# TODO release date splitter

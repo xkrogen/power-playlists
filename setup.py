@@ -45,6 +45,7 @@ setup(
         'psutil>5.0,<6',
         'pytest>=6.0,<7',
         'python-daemon>=2.2.4,<3',
+        'python-dateutil>=2.8.1,<3',
         'PyYAML>=5.3,<6',
         'setuptools>=50.1,<51',
         'spotipy>=2.14.0,<3',
