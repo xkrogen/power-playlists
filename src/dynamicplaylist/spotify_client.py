@@ -9,6 +9,7 @@ from typing import Callable, Dict, List, Optional, Union
 import yaml
 from dateutil import parser, tz
 from spotipy import Spotify
+import html
 
 from .utils import AppConfig, Constants
 
@@ -279,7 +280,7 @@ class PlaylistDescription(SpotifyWebObject):
         self.name: str = self._get_required_prop('name')
         self.collaborative: bool = self._get_required_prop('collaborative')
         self.description: str = self._get_required_prop('description')
-        self.description = self.description if self.description is not None else ''
+        self.description = html.unescape(self.description) if self.description is not None else ''
         self.owner: User = User(self._get_required_prop('owner'))
         self.public: bool = self._get_required_prop('public')
         self.public = self.public if self.public is not None else False

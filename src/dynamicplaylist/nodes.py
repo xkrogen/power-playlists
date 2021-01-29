@@ -171,7 +171,11 @@ class AllTracksNode(InputNode):
 
     def _fetch_tracks_impl(self):
         all_tracks = self.spotify.saved_tracks()
-        for playlist_desc in self.spotify.current_user_playlists():
+        playlists = self.spotify.current_user_playlists()
+        if not bool(self.get_optional_prop('include_dynamic', False)):
+            playlists = [p for p in playlists
+                         if Constants.AUTOGEN_PLAYLIST_DESCRIPTION not in p.description]
+        for playlist_desc in playlists:
             all_tracks.extend(self.spotify.playlist(playlist_desc.uri).tracks)
         return all_tracks
 
@@ -209,19 +213,21 @@ class OutputNode(NonleafNode):
         playlist_list = self.spotify.current_user_playlists()
         matching_playlist_uris = [pl.uri for pl in playlist_list if pl.name == self.playlist_name()]
         is_public = bool(self.get_optional_prop('public', False))
-        description = self.get_optional_prop('description', 'Auto-generated dynamic playlist')
         if len(matching_playlist_uris) > 1:
             raise ValueError(f'Found {len(matching_playlist_uris)} with name "{self.playlist_name()}". '
                              f'Expected to find 1 or none. Refusing to update any of them.')
         elif len(matching_playlist_uris) == 1:
             playlist_uri = matching_playlist_uris[0]
             playlist = self.spotify.playlist(playlist_uri)
-            if playlist.public != is_public or playlist.description != description:
-                self.spotify.playlist_change_details(playlist.oid, public=is_public, description=description)
+            if playlist.public != is_public or Constants.AUTOGEN_PLAYLIST_DESCRIPTION not in playlist.description:
+                self.spotify.playlist_change_details(playlist.oid,
+                                                     public=is_public,
+                                                     description=Constants.AUTOGEN_PLAYLIST_DESCRIPTION)
             existing_track_uris = [track.uri for track in playlist.tracks]
         else:
             logging.info(f'Creating new playlist `{self.playlist_name()}`')
-            playlist = self.spotify.create_playlist(self.playlist_name(), description, is_public, False)
+            playlist = self.spotify.create_playlist(
+                self.playlist_name(), Constants.AUTOGEN_PLAYLIST_DESCRIPTION, is_public, False)
             existing_track_uris = list()
         snapshot_id = playlist.snapshot_id
 
@@ -299,6 +305,9 @@ class OutputNode(NonleafNode):
         if is_updated:
             logging.info(f'Updated playlist `{self.playlist_name()}` to reflect new changes, will verify output.')
             self.verify_playlist_contents(expected_output_track_uris, playlist.uri, 'updates')
+            new_desc = Constants.AUTOGEN_PLAYLIST_DESCRIPTION + \
+                f' (last updated {datetime.strftime(datetime.now(), "%Y-%m-%d %H:%M%z")})'
+            self.spotify.playlist_change_details(playlist.uri, description=new_desc)
         else:
             logging.info(f'Playlist `{self.playlist_name()}` was not updated because no changes were detected.')
 
