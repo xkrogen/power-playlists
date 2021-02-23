@@ -2,6 +2,7 @@
 
 import logging
 import os
+import pathlib
 import subprocess
 import sys
 import time
@@ -16,7 +17,7 @@ from daemon import DaemonContext, pidfile
 from lockfile import pidlockfile
 from spotipy.oauth2 import SpotifyPKCE
 
-from dynamicplaylist.spotify_client import SpotifyClient
+from powerplaylists.spotify_client import SpotifyClient
 from . import nodes, utils
 from .nodes import OutputNode
 from .utils import AppConfig, Constants, UserConfig, VerifyMode
@@ -99,7 +100,7 @@ def _start():
     curr_pid = pidlockfile.read_pid_from_pidfile(utils.global_conf.daemon_pidfile)
     if curr_pid is not None:
         click.echo(f'Found existing daemon at PID {curr_pid}. Only one daemon is allowed to run concurrently. '
-                   f'Please kill the previous one using "spotify-dynamic-playlists daemon stop".', err=True)
+                   f'Please kill the previous one using "power-playlists daemon stop".', err=True)
         sys.exit(1)
     click.echo(f'Starting daemon with logging to {utils.global_conf.log_file_path}')
     context = DaemonContext(stdout=sys.stdout, stderr=sys.stderr)
@@ -153,7 +154,7 @@ def restart():
 @cli.group(hidden=not utils.is_macos())
 def launchd():
     """
-    Control integration with MacOS's `launchd` used for running spotify-dynamic-playlists in the background.
+    Control integration with MacOS's `launchd` used for running power-playlists in the background.
     This is preferred over the `daemon` commands when running on a MacOS system.
     """
     pass
@@ -264,9 +265,11 @@ def perform_update_iteration(app_conf: AppConfig, user_conf_files: List[str]):
         user_conf = UserConfig(f)
         fname = os.path.basename(f)
 
+        token_dir = f'{app_conf.cache_dir}/tokens'
+        pathlib.Path(token_dir).mkdir(parents=True, exist_ok=True)
         pkce = SpotifyPKCE(client_id=app_conf.client_id,
                            redirect_uri=app_conf.client_redirect_uri,
-                           cache_path=f"{app_conf.cache_dir}/tokens/{user_conf.username}.token",
+                           cache_path=f"{token_dir}/{user_conf.username}.token",
                            scope=Constants.SECURITY_SCOPES,
                            username=user_conf.username)
         spotipy_client = spotipy.Spotify(auth_manager=pkce)

@@ -8,7 +8,7 @@ from os.path import basename, splitext
 from setuptools import find_packages, setup
 
 setup(
-    name='spotify-dynamic-playlists',
+    name='power-playlists',
     version='0.1',
     description='TODO',
     long_description='TODO',
@@ -52,6 +52,6 @@ setup(
     ],
     entry_points='''
         [console_scripts]
-        spotify-dynamic-playlists=dynamicplaylist.main:cli
+        power-playlists=powerplaylists.main:cli
     '''
     )

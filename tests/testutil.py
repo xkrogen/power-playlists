@@ -16,6 +16,7 @@ def create_track_dict(uri):
                 'release_date': '2020-01-01'
             }
         },
+        'is_local': False,
         'added_at': '2020-01-01T00:00:00Z',
         'added_by': {
             'uri': 'some_user_uri',

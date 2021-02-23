@@ -11,6 +11,7 @@ from dateutil import parser, tz
 from spotipy import Spotify
 import html
 
+from . import utils
 from .utils import AppConfig, Constants
 
 logger = logging.getLogger(__name__)
@@ -79,7 +80,8 @@ class SpotifyClient:
             additional_resp = self.spotipy.playlist_items(
                 playlist_uri, offset=len(tracklist), limit=Constants.PAGINATION_LIMIT)
             tracklist.extend(additional_resp['items'])
-        return Playlist(playlist_resp, [PlaylistTrack(track) for track in tracklist if not track['is_local']])
+        return Playlist(playlist_resp, [PlaylistTrack(track) for track in tracklist
+                                        if track['track'] is not None and not utils.to_bool(track['is_local'])])
 
     def saved_tracks(self) -> List[SavedTrack]:
         self._increment_call_count('saved_tracks')

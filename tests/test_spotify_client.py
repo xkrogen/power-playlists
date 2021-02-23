@@ -1,5 +1,4 @@
-from dynamicplaylist import utils
-from dynamicplaylist.spotify_client import *
+from powerplaylists.spotify_client import *
 from test_mocks import MockClient
 
 

@@ -5,9 +5,9 @@ from itertools import chain
 import pytest
 
 import testutil
-from dynamicplaylist import nodes
-from dynamicplaylist.nodes import *
-from dynamicplaylist.utils import AppConfig
+from powerplaylists import nodes
+from powerplaylists.nodes import *
+from powerplaylists.utils import AppConfig
 from test_mocks import MockClient
 
 
