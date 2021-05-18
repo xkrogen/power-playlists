@@ -1,0 +1,14 @@
+PlaylistA:
+  type: 'playlist'
+  uri: 'spotify:playlist:xxxxxxxxxxxxxxxxx'
+PlaylistB:
+  type: 'playlist'
+  uri: 'spotify:playlist:yyyyyyyyyyyyyyyyy'
+PlaylistABCombined:
+  type: 'combiner'
+  inputs:
+    - PlaylistA
+    - PlaylistB
+PlaylistABCombinedOutput:
+  type: 'output'
+  playlist_name: 'Playlist A + B Combined'

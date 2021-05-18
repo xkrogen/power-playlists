@@ -46,7 +46,7 @@ class Constants:
     DAEMON_PIDFILE_DEFAULT = f'{APP_HOMEDIR}/daemon.pid'
     VERIFY_MODE_DEFAULT = VerifyMode.END
 
-    PACKAGE_HIERARCHICAL_NAME = 'io.github.xkrogen.power-playlists'
+    PACKAGE_HIERARCHICAL_NAME = 'com.github.xkrogen.power-playlists'
     MACOS_LAUNCHD_AGENT_DIR = '~/Library/LaunchAgents'
     MACOS_LAUNCHD_PLIST_FILE = f'{MACOS_LAUNCHD_AGENT_DIR}/{PACKAGE_HIERARCHICAL_NAME}.plist'
     MACOS_LAUNCHD_PLIST_FORMAT = """
@@ -136,7 +136,6 @@ class UserConfig:
     def __init__(self, user_config_path: Union[str, os.PathLike[str]]):
         with open(user_config_path) as conf_file:
             conf_yaml = yaml.safe_load(conf_file)
-        self.username: str = conf_yaml['username']
-        self.node_dicts: Dict[str, Dict[str, Any]] = conf_yaml['nodes']
-        if not isinstance(self.node_dicts, Dict) or len(self.node_dicts) < 1:
+        if not isinstance(conf_yaml, Dict) or len(conf_yaml) < 1:
             raise ValueError(f'Invalid node definition found within user conf file: {user_config_path}')
+        self.node_dicts: Dict[str, Dict[str, Any]] = conf_yaml

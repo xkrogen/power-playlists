@@ -269,9 +269,8 @@ def perform_update_iteration(app_conf: AppConfig, user_conf_files: List[str]):
         pathlib.Path(token_dir).mkdir(parents=True, exist_ok=True)
         pkce = SpotifyPKCE(client_id=app_conf.client_id,
                            redirect_uri=app_conf.client_redirect_uri,
-                           cache_path=f"{token_dir}/{user_conf.username}.token",
-                           scope=Constants.SECURITY_SCOPES,
-                           username=user_conf.username)
+                           cache_path=f"{token_dir}/{fname}.token",
+                           scope=Constants.SECURITY_SCOPES)
         spotipy_client = spotipy.Spotify(auth_manager=pkce)
         spotify_client = SpotifyClient(app_conf, spotipy_client)
 

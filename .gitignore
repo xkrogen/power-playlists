@@ -4,4 +4,6 @@ __pycache__
 .idea
 *.log
 **/*.egg-info
+**/_build
+docs/_autodoc
 **/.DS_Store

@@ -24,7 +24,6 @@ setup(
         # complete classifier list: http://pypi.python.org/pypi?%3Aaction=list_classifiers
         'Operating System :: Unix',
         'Operating System :: POSIX',
-        'Operating System :: Microsoft :: Windows',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
@@ -43,7 +42,6 @@ setup(
         'Click>=7.1,<8',
         'lockfile>=0.12',
         'psutil>5.0,<6',
-        'pytest>=6.0,<7',
         'python-daemon>=2.2.4,<3',
         'python-dateutil>=2.8.1,<3',
         'PyYAML>=5.3,<6',
