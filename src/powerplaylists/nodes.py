@@ -189,7 +189,10 @@ class NonleafNode(Node, abc.ABC):
         self.inputs: List[Node] = list()
 
     def resolve_inputs(self, node_dict: Dict[str, Node]):
-        self.inputs = [node_dict[node_id] for node_id in self.input_nids]
+        try:
+            self.inputs = [node_dict[node_id] for node_id in self.input_nids]
+        except KeyError as ke:
+            raise ValueError(f'Found nonexistent node_id in inputs of node <{self.nid}>: {ke}')
 
 
 class OutputNode(NonleafNode):
@@ -348,7 +351,34 @@ class CombinerNode(LogicNode):
         return 'combiner'
 
     def tracks(self):
-        return functools.reduce(lambda l1, l2: l1 + l2, map(lambda i: i.tracks(), self.inputs))
+        combine_type = self.get_optional_prop('combine_type', 'concat')
+        if combine_type == 'concat':
+            return functools.reduce(lambda l1, l2: l1 + l2, map(lambda i: i.tracks(), self.inputs))
+        elif combine_type == 'interleave':
+            output = []
+            idx = 0
+            track_lists = [i.tracks() for i in self.inputs]
+            while idx < max([len(tl) for tl in track_lists]):
+                for track_list in track_lists:
+                    if idx < len(track_list):
+                        output.append(track_list[idx])
+                idx += 1
+            return output
+        else:
+            raise ValueError(f'Invalid combine_type found for node <{self.nid}>: {combine_type}')
+
+
+class LimitNode(LogicNode):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    @classmethod
+    def ntype(cls):
+        return 'limit'
+
+    def tracks(self):
+        max_size = int(self.get_required_prop('max_size'))
+        return self._get_single_input_tracks()[0:max_size]
 
 
 class SortNode(LogicNode):
