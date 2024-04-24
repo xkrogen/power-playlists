@@ -3,7 +3,6 @@ from __future__ import annotations
 import enum
 import os
 import sys
-from distutils import util
 from typing import *
 
 import yaml
@@ -13,11 +12,13 @@ def is_macos():
     return sys.platform == 'darwin'
 
 
-def to_bool(bool_or_str: Union[str, bool]) -> bool:
-    if type(bool_or_str) == bool:
+def to_bool(bool_or_str: Optional[Union[str, bool]]) -> bool:
+    if bool_or_str is None:
+        return False
+    elif bool_or_str is bool:
         return bool_or_str
     else:
-        return bool(util.strtobool(bool_or_str))
+        return bool(str(bool_or_str).lower() in ('t', 'true'))
 
 
 class VerifyMode(enum.Enum):
