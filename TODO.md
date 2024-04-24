@@ -1,4 +1,6 @@
 Main todos:
+- Auto-create ~/.power-playlists if necessary
+  - FileNotFoundError: [Errno 2] No such file or directory: '/Users/<user>/.power-playlists/app.log'
 - Add a decent README
 - Set up Sphinx / Readthedocs / PyPi integrations
 - Create a samples/ folder for template examples
