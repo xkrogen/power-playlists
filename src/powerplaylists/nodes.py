@@ -264,18 +264,29 @@ class OutputNode(NonleafNode):
                              f'Expected to find 1 or none. Refusing to update any of them.')
         elif len(matching_playlist_uris) == 1:
             playlist_uri = matching_playlist_uris[0]
-            playlist = self.spotify.playlist(playlist_uri)
-            if playlist.public != is_public or Constants.AUTOGEN_PLAYLIST_DESCRIPTION not in playlist.description:
-                self.spotify.playlist_change_details(playlist.oid,
+            playlist_desc = self.spotify.playlist_description(playlist_uri)
+            playlist_uri = playlist_desc.uri
+            if (playlist_desc.public != is_public
+                    or Constants.AUTOGEN_PLAYLIST_DESCRIPTION not in playlist_desc.description):
+                self.spotify.playlist_change_details(playlist_desc.oid,
                                                      public=is_public,
                                                      description=Constants.AUTOGEN_PLAYLIST_DESCRIPTION)
-            existing_track_uris = [track.uri for track in playlist.tracks]
         else:
             logging.info(f'Creating new playlist `{self.playlist_name()}`')
-            playlist = self.spotify.create_playlist(
-                self.playlist_name(), Constants.AUTOGEN_PLAYLIST_DESCRIPTION, is_public, False)
-            existing_track_uris = list()
-        snapshot_id = playlist.snapshot_id
+            playlist_uri = self.spotify.create_playlist(
+                self.playlist_name(), Constants.AUTOGEN_PLAYLIST_DESCRIPTION, is_public, False).uri
+
+        # Note that it appears there are a few _different_ snapshot IDs in use depending on the API call.
+        # playlist_add_items() uses the snapshot ID returned from the standard playlist object, but
+        # playlist_remove_specific_occurrences_of_items() and playlist_reorder_items() use a different snapshot ID
+        # (is it the same across those 2 APIs? not sure). It can be fetched by running the respective APIs in a no-op
+        # fashion. None of this is documented in the Spotify API docs... See these two links for more detail:
+        # https://community.spotify.com/t5/Spotify-for-Developers/Can-t-remove-specific-tracks-from-playlist/td-p/5753116
+        # https://github.com/jwilsson/spotify-web-api-php/issues/271#issuecomment-1995790688
+
+        # fetch the latest version of the playlist
+        playlist = self.spotify.playlist(playlist_uri, force_reload=True)
+        existing_track_uris = [track.uri for track in playlist.tracks]
 
         # create set of new/updated/removed/etc. tracks
         expected_output_track_uris = [track.uri for track in self.tracks()]
@@ -297,12 +308,17 @@ class OutputNode(NonleafNode):
 
         if len(required_removals) > 0:
             logger.debug(f'Playlist [{self.playlist_name()}]: Removing tracks: {required_removals}')
+            deletion_snapshot_id = self.spotify.playlist_remove_specific_occurrences_of_items(playlist.uri, [])
             self.spotify.playlist_remove_specific_occurrences_of_items(
-                playlist.uri, required_removals, snapshot_id=playlist.snapshot_id)
+                playlist.uri, required_removals, snapshot_id=deletion_snapshot_id)
             is_updated = True
             self.verify_playlist_contents(expected_output_track_uris_after_removals, playlist.uri, 'item removal')
 
         # Step 2: Add new tracks
+        # reload the playlist to get the latest snapshot ID after the deletions
+        playlist = self.spotify.playlist(playlist.uri, force_reload=True)
+        snapshot_id = playlist.snapshot_id
+
         existing_track_uri_dict: Dict[str, int] = dict()
         for uri in existing_track_uris:
             existing_track_uri_dict[uri] = existing_track_uri_dict.get(uri, 0) + 1
@@ -317,12 +333,14 @@ class OutputNode(NonleafNode):
 
         if len(required_addition_uris) > 0:
             logger.debug(f'Playlist [{self.playlist_name()}]: Adding tracks: {required_addition_uris}')
-            snapshot_id = self.spotify.playlist_add_items(playlist.uri, required_addition_uris)
+            snapshot_id = self.spotify.playlist_add_items(playlist.uri, required_addition_uris, snapshot_id=snapshot_id)
             expected_ordering = expected_output_track_uris_after_removals + required_addition_uris
             is_updated = True
             self.verify_playlist_contents(expected_ordering, playlist.uri, 'item addition')
 
         # Step 3: Reorder tracks currently in the playlist to match the expected order
+        reordering_snapshot_id = self.spotify.playlist_reorder_items(playlist.uri, 0, 0)
+
         current_track_uris = expected_output_track_uris_after_removals + required_addition_uris
         if len(current_track_uris) != len(expected_output_track_uris):
             raise ValueError(f'Expected to find {len(expected_output_track_uris)} track URIs '
@@ -337,8 +355,8 @@ class OutputNode(NonleafNode):
                              f'(target song uri <{target_uri}>)')
                 # TODO attempt to group ranges to reduce API call volume
                 try:
-                    snapshot_id = self.spotify.playlist_reorder_items(
-                        playlist.uri, start_idx, target_idx, snapshot_id=snapshot_id)
+                    reordering_snapshot_id = self.spotify.playlist_reorder_items(
+                        playlist.uri, start_idx, target_idx, snapshot_id=reordering_snapshot_id)
                 except (KeyError, spotipy.SpotifyException) as se:
                     logger.error(f'Encountered error while attempting to reorder items. playlist_uri={playlist.uri}, '
                                  f'start_idx={start_idx}, target_idx={target_idx}, snapshot_id={snapshot_id}',
@@ -350,7 +368,7 @@ class OutputNode(NonleafNode):
 
         if is_updated:
             logging.info(f'Updated playlist `{self.playlist_name()}` to reflect new changes, will verify output.')
-            self.verify_playlist_contents(expected_output_track_uris, playlist.uri, 'updates')
+            self.verify_playlist_contents(expected_output_track_uris, playlist.uri, 'updates', is_end=True)
             new_desc = Constants.AUTOGEN_PLAYLIST_DESCRIPTION + \
                 f' (last updated {datetime.strftime(datetime.now(), "%Y-%m-%d %H:%M%z")})'
             self.spotify.playlist_change_details(playlist.uri, description=new_desc)
@@ -641,6 +659,13 @@ class DeduplicateNode(LogicNode):
     ``input`` [string] [required]
       The name of the node to use as the input for this node. Note than this can only have one input; if multiple
       nodes should be combined into a single playlist, use a :class:`CombinerNode`.
+
+    ``use_uris`` [boolean] [optional]
+      If true, use the full URI of the track to determine duplicates.
+      Otherwise, the track name + album name + artist name(s) are used.
+      If conflicts are detected, the first track encountered is kept and the rest are discarded. Defaults to false.
+      (This mainly exists because it has been observed that sometimes a track may have multiple URIs, despite having
+      the same title, artist, and album.)
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -650,11 +675,19 @@ class DeduplicateNode(LogicNode):
         return 'dedup'
 
     def tracks(self):
-        tracks_by_uri = {}
+        use_uris = bool(self.get_optional_prop('use_uris', False))
+
+        get_identifier_fn = (lambda t: t.uri) if use_uris \
+            else (lambda t: (t.name, t.album.name, tuple(sorted([a.name for a in t.artists]))))
+
+        visited_tracks = set()
+        output_tracks = []
         for track in self._get_single_input_tracks():
-            if track.uri not in tracks_by_uri:
-                tracks_by_uri[track.uri] = track
-        return [track for uri, track in tracks_by_uri.items()]
+            track_identifier = get_identifier_fn(track)
+            if track_identifier not in visited_tracks:
+                output_tracks.append(track)
+                visited_tracks.add(track_identifier)
+        return output_tracks
 
 
 class LikedNode(LogicNode):

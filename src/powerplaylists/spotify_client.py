@@ -72,6 +72,7 @@ class SpotifyClient:
 
     def __load_playlist(self, playlist_uri) -> Playlist:
         self._increment_call_count('playlist')
+        logging.debug(f'Loading playlist {playlist_uri} ...')
         playlist_resp = self.spotipy.playlist(playlist_uri)
         tracklist = playlist_resp['tracks']['items']
         total_tracks = int(playlist_resp['tracks']['total'])
@@ -80,8 +81,10 @@ class SpotifyClient:
             additional_resp = self.spotipy.playlist_items(
                 playlist_uri, offset=len(tracklist), limit=Constants.PAGINATION_LIMIT)
             tracklist.extend(additional_resp['items'])
-        return Playlist(playlist_resp, [PlaylistTrack(track) for track in tracklist
-                                        if track['track'] is not None and not utils.to_bool(track['is_local'])])
+        return Playlist(playlist_resp, [PlaylistTrack(track) for track in tracklist if
+                                        track['track'] is not None and
+                                        utils.to_bool(track['track'].get('track', False)) and
+                                        not utils.to_bool(track['is_local'])])
 
     def saved_tracks(self) -> List[SavedTrack]:
         self._increment_call_count('saved_tracks')
@@ -110,6 +113,11 @@ class SpotifyClient:
         tracks_removed = 0
         # For pagination of removals, start at the end and work backwards to avoid changing the indices
         # of songs specified in subsequent calls
+        if len(removal_tuple_list) == 0:
+            return self.get_snapshot_id(
+                'remove_specific_occurrences',
+                self.spotipy.playlist_remove_specific_occurrences_of_items(playlist_uri, [], snapshot_id=snapshot_id))
+
         while tracks_removed < len(removal_tuple_list):
             start_idx = -1 * (Constants.PAGINATION_LIMIT + tracks_removed)
             end_idx = None if tracks_removed == 0 else -tracks_removed
@@ -218,7 +226,8 @@ class SpotifyWebObject:
 
     def _get_required_prop(self, key: str):
         if key not in self._obj_dict:
-            raise ValueError(f'Malformed <{type(self).__name__}> received; missing key <{key}>')
+            raise ValueError(f'Malformed <{type(self).__name__}> received; missing key <{key}>. '
+                             f'Full object dict: {str(self._obj_dict)}')
         return self._obj_dict[key]
 
     def __getstate__(self):
@@ -256,7 +265,12 @@ class Album(SpotifyWebObject):
         self.artists: List[Artist] = [Artist(artist) for artist in self._get_required_prop('artists')]
         self.name: str = self._get_required_prop('name')
         # release_date is YYYY, YYYY-MM, or YYYY-MM-DD
-        self.release_date = parser.isoparse(self._get_required_prop('release_date'))
+        try:
+            self.release_date = parser.isoparse(self._get_required_prop('release_date'))
+        except ValueError:
+            logging.warning(f'Failed to parse release date for album {self.name}: '
+                            f'{self._get_required_prop("release_date")}')
+            self.release_date = datetime.min
 
 
 # https://developer.spotify.com/documentation/web-api/reference/object-model/#track-object-simplified
