@@ -74,7 +74,7 @@ def run(userconf: List[str], verifymode: str, force: bool):
     try:
         perform_update_iteration(app_conf, user_conf_files)
     except BaseException as e:
-        logging.error(f'Fatal exception encountered while performing update. Exiting.', exc_info=e)
+        logging.error('Fatal exception encountered while performing update. Exiting.', exc_info=e)
         click.echo(f'Error encountered while performing an update: {e}', err=True)
         click.echo(f'Please see the log file for more details: {app_conf.log_file_path}', err=True)
         sys.exit(1)
@@ -128,7 +128,7 @@ def _stop():
         running.wait()
         # Remove the PID file just in case
         pidlockfile.remove_existing_pidfile(utils.global_conf.daemon_pidfile)
-        click.echo(f'Successfully killed daemon process.')
+        click.echo('Successfully killed daemon process.')
 
 
 @daemon.command()
@@ -184,8 +184,8 @@ def launchd_install():
                f'{utils.global_conf.daemon_sleep_period_minutes} minutes')
     subprocess.run(['launchctl', 'load', plist_path], check=True)
     if not _launchd_service_exists():
-        raise ValueError(f'launchctl load appears to have been unsuccessful')
-    click.echo(f'Loaded plist into launchd')
+        raise ValueError('launchctl load appears to have been unsuccessful')
+    click.echo('Loaded plist into launchd')
     click.echo(f'Logs will be sent to: {utils.global_conf.log_file_path}')
 
 
@@ -206,7 +206,7 @@ def _launchd_uninstall():
     plist_path = os.path.expanduser(Constants.MACOS_LAUNCHD_PLIST_FILE)
     if _launchd_service_exists():
         subprocess.run(['launchctl', 'unload', plist_path], check=True)
-        click.echo(f'Unloaded existing service from launchd')
+        click.echo('Unloaded existing service from launchd')
     if os.path.exists(plist_path):
         os.remove(plist_path)
         click.echo(f'Deleted launchd plist file at {Constants.MACOS_LAUNCHD_PLIST_FILE}')
@@ -243,7 +243,7 @@ def daemon_run_loop(app_conf: AppConfig):
                         time.sleep(min(next_iteration_time - curr_time, 10 * 60))
                         curr_time = time.time()
                     next_iteration_time = curr_time + app_conf.daemon_sleep_period_minutes * 60
-                    logging.info(f'Beginning playlist update iteration')
+                    logging.info('Beginning playlist update iteration')
                     perform_update_iteration(app_conf, app_conf.get_user_config_files())
                     logging.info(f'Update iteration completed, '
                                  f'sleeping for {app_conf.daemon_sleep_period_minutes} minutes...')
@@ -253,7 +253,7 @@ def daemon_run_loop(app_conf: AppConfig):
                     logging.exception('Fatal exception encountered while performing update. Exiting.')
                     raise
     except (lockfile.LockTimeout, lockfile.AlreadyLocked):
-        msg = f'Daemon unable to acquire PID file lock; exiting.'
+        msg = 'Daemon unable to acquire PID file lock; exiting.'
         click.echo(msg, err=True)
         logging.warning(msg)
         sys.exit(1)

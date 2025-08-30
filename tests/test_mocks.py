@@ -30,7 +30,7 @@ class MockClient(spotipy.Spotify):
         elif playlist_id is not None:
             return [playlist for playlist in self.playlists if playlist['id'] == playlist_id][0]
         else:
-            raise ValueError(f'Must supply either uri or playlist_id')
+            raise ValueError('Must supply either uri or playlist_id')
 
     def current_user(self):
         return testutil.get_user_dict('test_pl_owner')
@@ -82,7 +82,7 @@ class MockClient(spotipy.Spotify):
         if range_start == insert_before:
             return {'snapshot_id': 'ignored'}  # no-op
         if range_length != 1:
-            raise ValueError(f'range_length != 1 not yet supported')
+            raise ValueError('range_length != 1 not yet supported')
         items_prev = items[0:insert_before] if insert_before != 0 else list()
         items_after = items[insert_before:] if insert_before != len(items) else list()
         if range_start < insert_before:

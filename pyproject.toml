@@ -67,9 +67,64 @@ include = [
     "LICENSE",
 ]
 
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+    "TID",  # flake8-tidy-imports
+    "Q",    # flake8-quotes
+    "T20",  # flake8-print
+]
+ignore = [
+    "E501",   # line too long - handled by formatter
+    "F403",   # star imports - will be fixed separately 
+    "F405",   # may be undefined from star imports - will be fixed separately
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["T20"]  # Allow print statements in tests
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = [
+    "spotipy.*",
+    "lockfile.*", 
+    "psutil.*",
+    "daemon.*",
+]
+ignore_missing_imports = true
+
 [dependency-groups]
 dev = [
     "mypy>=1.17.1",
     "ruff>=0.12.11",
+    "types-psutil>=7.0.0.20250822",
+    "types-python-dateutil>=2.9.0.20250822",
     "types-pyyaml>=6.0.12.20250822",
 ]

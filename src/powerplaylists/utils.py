@@ -8,14 +8,14 @@ from typing import *
 import yaml
 
 
-def is_macos():
+def is_macos() -> bool:
     return sys.platform == 'darwin'
 
 
 def to_bool(bool_or_str: Optional[Union[str, bool]]) -> bool:
     if bool_or_str is None:
         return False
-    elif bool_or_str is bool:
+    elif isinstance(bool_or_str, bool):
         return bool_or_str
     else:
         return bool(str(bool_or_str).lower() in ('t', 'true'))
@@ -99,11 +99,11 @@ class AppConfig:
         elif os.path.isfile(Constants.APP_CONFIG_FILE_DEFAULT):
             self.__load_from_file(Constants.APP_CONFIG_FILE_DEFAULT)
 
-    def __load_from_file(self, path: Union[str, os.PathLike[str]]):
+    def __load_from_file(self, path: Union[str, os.PathLike[str]]) -> None:
         with open(path) as conf_file:
             conf_yaml = yaml.safe_load(conf_file)
 
-        def get_or_default(key, default):
+        def get_or_default(key: str, default: Any) -> Any:
             return conf_yaml[key] if key in conf_yaml else default
 
         self.client_id = get_or_default('client_id', self.client_id)
@@ -117,7 +117,7 @@ class AppConfig:
         self.daemon_pidfile = get_or_default('daemon_pidfile', self.daemon_pidfile)
         self.verify_mode = VerifyMode[get_or_default('verify_mode', self.verify_mode.name).upper()]
 
-    def get_user_config_files(self, user_config_file_paths: List[str] = None) -> List[str]:
+    def get_user_config_files(self, user_config_file_paths: Optional[List[str]] = None) -> List[str]:
         if user_config_file_paths is not None and len(user_config_file_paths) != 0:
             for user_config_file_path in user_config_file_paths:
                 if not os.path.isfile(user_config_file_path):

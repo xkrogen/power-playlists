@@ -3,14 +3,17 @@ from __future__ import annotations
 import abc
 import functools
 import inspect
+import logging
 import re
 from datetime import timedelta
 from typing import Any, Iterable, cast
 
 import spotipy
 
-from .spotify_client import *
-from .utils import VerifyMode
+from .spotify_client import (
+    SpotifyClient, Track, SavedTrack, PlaylistTrack
+)
+from .utils import VerifyMode, Constants
 
 logger = logging.getLogger(__name__)
 
@@ -724,7 +727,7 @@ class TemplateNode(Node, abc.ABC):
         super().__init__(**kwargs)
 
     def tracks(self):
-        raise ValueError(f'Cannot fetch tracks directly from a template node')
+        raise ValueError('Cannot fetch tracks directly from a template node')
 
 
 class DynamicTemplateNode(TemplateNode):
