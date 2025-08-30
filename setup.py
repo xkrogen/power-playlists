@@ -44,9 +44,9 @@ setup(
         'psutil>5.0,<6',
         'python-daemon>=2.2.4,<3',
         'python-dateutil>=2.8.1,<3',
-        'PyYAML>=5.3,<6',
-        'setuptools>=50.1,<51',
-        'spotipy>=2.14.0,<3',
+        'PyYAML~=6.0',
+        'setuptools~=70.0.0',
+        'spotipy~=2.22.1',
     ],
     entry_points='''
         [console_scripts]

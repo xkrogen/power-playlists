@@ -308,9 +308,9 @@ class OutputNode(NonleafNode):
 
         if len(required_removals) > 0:
             logger.debug(f'Playlist [{self.playlist_name()}]: Removing tracks: {required_removals}')
-            deletion_snapshot_id = self.spotify.playlist_remove_specific_occurrences_of_items(playlist.uri, [])
+            snapshot_id = self.spotify.playlist_remove_specific_occurrences_of_items(playlist.uri, [])['snapshot_id']
             self.spotify.playlist_remove_specific_occurrences_of_items(
-                playlist.uri, required_removals, snapshot_id=deletion_snapshot_id)
+                playlist.uri, required_removals, snapshot_id=snapshot_id)
             is_updated = True
             self.verify_playlist_contents(expected_output_track_uris_after_removals, playlist.uri, 'item removal')
 
@@ -339,7 +339,8 @@ class OutputNode(NonleafNode):
             self.verify_playlist_contents(expected_ordering, playlist.uri, 'item addition')
 
         # Step 3: Reorder tracks currently in the playlist to match the expected order
-        reordering_snapshot_id = self.spotify.playlist_reorder_items(playlist.uri, 0, 0)
+        if not is_updated:
+            snapshot_id = self.spotify.playlist_reorder_items(playlist.uri, 0, 0)['snapshot_id']
 
         current_track_uris = expected_output_track_uris_after_removals + required_addition_uris
         if len(current_track_uris) != len(expected_output_track_uris):
@@ -355,8 +356,8 @@ class OutputNode(NonleafNode):
                              f'(target song uri <{target_uri}>)')
                 # TODO attempt to group ranges to reduce API call volume
                 try:
-                    reordering_snapshot_id = self.spotify.playlist_reorder_items(
-                        playlist.uri, start_idx, target_idx, snapshot_id=reordering_snapshot_id)
+                    snapshot_id = self.spotify.playlist_reorder_items(
+                        playlist.uri, start_idx, target_idx, snapshot_id=snapshot_id)['snapshot_id']
                 except (KeyError, spotipy.SpotifyException) as se:
                     logger.error(f'Encountered error while attempting to reorder items. playlist_uri={playlist.uri}, '
                                  f'start_idx={start_idx}, target_idx={target_idx}, snapshot_id={snapshot_id}',
