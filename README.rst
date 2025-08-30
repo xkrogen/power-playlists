@@ -12,7 +12,7 @@ definitions. Daemonization is also supported to run the tool as a background pro
 Quick Start Guide
 -----------------
 
-First, make sure you have a functioning Python 3 installation. Then, install ``power-playlists`` from PyPi::
+First, make sure you have a functioning Python 3.9+ installation. Then, install ``power-playlists`` from PyPi::
 
   > pip install power-playlists
 
@@ -82,6 +82,19 @@ Full documentation can be found on the `Power Playlists page on Read the Docs <h
 TODO get the Python docs set up, link to all nodes
 TODO show a more complex example involving template
 TODO describe daemonization
+
+Development
+-----------
+
+Power Playlists uses modern Python tooling with `uv <https://github.com/astral-sh/uv>`_ for dependency management and builds. To set up a development environment:
+
+1. Install uv: ``curl -LsSf https://astral.sh/uv/install.sh | sh``
+2. Clone the repository
+3. Run ``uv sync --all-extras`` to install all dependencies including testing and documentation tools
+4. Run tests with ``uv run python -m pytest tests/``
+5. Run the tool with ``uv run power-playlists --help``
+
+The project is configured with ``pyproject.toml`` and includes a lockfile (``uv.lock``) for reproducible builds.
 
 The Backstory
 --------------
