@@ -59,7 +59,7 @@ The CI will **warn but not block** if:
 uv sync --all-extras
 
 # Run tests
-uv run python -m pytest tests/test_mocks.py tests/test_spotify_client.py
+uv run pytest
 
 # Run linting
 uv run ruff check .
