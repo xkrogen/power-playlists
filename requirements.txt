@@ -1,8 +1,0 @@
-click~=8.1.7
-lockfile~=0.12.2
-psutil~=5.9.8
-python-daemon~=3.0.1
-python-dateutil~=2.9.0
-PyYAML~=6.0.2
-setuptools~=70.3.0
-spotipy~=2.24.0
