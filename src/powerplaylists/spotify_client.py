@@ -83,7 +83,7 @@ class SpotifyClient:
             tracklist.extend(additional_resp['items'])
         return Playlist(playlist_resp, [PlaylistTrack(track) for track in tracklist if
                                         track['track'] is not None and
-                                        utils.to_bool(track['track'].get('track', False)) and
+                                        track['track'].get('type') == 'track' and
                                         not utils.to_bool(track['is_local'])])
 
     def saved_tracks(self) -> List[SavedTrack]:
