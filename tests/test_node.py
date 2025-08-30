@@ -109,8 +109,7 @@ class TestNode:
         out_node.tracks = lambda: [PlaylistTrack(testutil.create_track_dict(uri)) for uri in expected_output_list]
         out_node.create_or_update()
 
-        assert mock_client.api_call_counts['playlist_remove_specific_occurrences_of_items']\
-               == 200 / Constants.PAGINATION_LIMIT
+        assert mock_client.api_call_counts['playlist_remove_specific_occurrences_of_items'] == 5
         testutil.assert_playlist_uris(mock_client, 'test_pl_uri', expected_output_list)
 
     def test_resolve_node_list_valid(self):

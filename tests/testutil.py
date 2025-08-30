@@ -5,6 +5,7 @@ def create_track_dict(uri):
             'id': uri,
             'uri': uri,
             'name': 'Track Name',
+            'type': 'track',  # Add type field for proper filtering
             'popularity': 50,
             'artists': artists,
             'album': {
