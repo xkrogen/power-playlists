@@ -172,6 +172,10 @@ class PlaylistNode(InputNode):
     def _fetch_tracks_impl(self):
         return self.spotify.playlist(self.playlist_uri()).tracks
 
+    def resolve_inputs(self, node_dict: dict[str, Node]) -> None:
+        # Input nodes have no inputs to resolve
+        pass
+
 
 class LikedTracksNode(InputNode):
     """
@@ -189,6 +193,10 @@ class LikedTracksNode(InputNode):
 
     def _fetch_tracks_impl(self):
         return self.spotify.saved_tracks()
+
+    def resolve_inputs(self, node_dict: dict[str, Node]) -> None:
+        # Input nodes have no inputs to resolve
+        pass
 
 
 class AllTracksNode(InputNode):
@@ -220,6 +228,10 @@ class AllTracksNode(InputNode):
         for playlist_desc in playlists:
             all_tracks.extend(self.spotify.playlist(playlist_desc.uri).tracks)
         return all_tracks
+
+    def resolve_inputs(self, node_dict: dict[str, Node]) -> None:
+        # Input nodes have no inputs to resolve
+        pass
 
 
 class NonleafNode(Node, abc.ABC):
@@ -772,6 +784,10 @@ class TemplateNode(Node, abc.ABC):
 
     def tracks(self):
         raise ValueError("Cannot fetch tracks directly from a template node")
+
+    def resolve_inputs(self, node_dict: dict[str, Node]) -> None:
+        # Template nodes have no inputs to resolve as they are processed during template resolution
+        pass
 
 
 class DynamicTemplateNode(TemplateNode):

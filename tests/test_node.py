@@ -15,9 +15,6 @@ from powerplaylists.nodes import (
 from powerplaylists.spotify_client import PlaylistTrack, SpotifyClient
 from powerplaylists.utils import AppConfig, Constants, VerifyMode
 
-# Skip all tests in this module due to import issues with powerplaylists dependencies
-pytestmark = pytest.mark.skip(reason="Import issues with powerplaylists dependencies need to be resolved")
-
 
 def get_all_permutations_as_str(input_list):
     input_list = input_list.split(",") if isinstance(input_list, str) else input_list
