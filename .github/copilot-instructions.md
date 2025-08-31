@@ -1,0 +1,165 @@
+# Power Playlists - GitHub Copilot Instructions
+
+**ALWAYS follow these instructions first and only fallback to additional search and context gathering if the information here is incomplete or found to be in error.**
+
+## About Power Playlists
+
+Power Playlists is a Python CLI tool for creating dynamic Spotify playlists using YAML configuration files. It supports combining playlists, filtering tracks, and automated playlist management with daemon mode for periodic updates.
+
+## Working Effectively
+
+### Bootstrap and Setup Commands
+Run these commands in order to set up a development environment:
+
+1. **Install UV package manager**: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+2. **Add UV to PATH**: `export PATH="$HOME/.local/bin:$PATH"`
+3. **Install all dependencies**: `uv sync --all-extras` - takes <1 second
+4. **Create required application directory**: `mkdir -p ~/.power-playlists/userconf`
+
+### Build and Test Commands
+
+- **Run tests**: `uv run pytest` - takes ~2 seconds. NEVER CANCEL, set timeout to 60+ seconds for safety
+- **Linting check**: `uv run ruff check .` - takes <0.1 seconds  
+- **Format code**: `uv run ruff format .` - takes <0.1 seconds
+- **Format check**: `uv run ruff format --check .` - takes <0.1 seconds
+- **Type checking**: `uv run mypy src/` - takes ~2.5 seconds. NEVER CANCEL, set timeout to 60+ seconds for safety
+- **Generate documentation**: `uv run pdoc src/powerplaylists --output-directory /tmp/docs` - takes ~1.6 seconds
+
+### Run the Application
+
+- **CLI help**: `uv run power-playlists --help`
+- **Run command help**: `uv run power-playlists run --help`
+- **Test with sample config**: `uv run power-playlists run --userconf samples/xkrogen.yaml`
+  - Note: Sample config contains placeholder URIs and will show validation errors - this is expected
+- **Daemon commands**: `uv run power-playlists daemon --help`
+
+## Validation Requirements
+
+**CRITICAL**: Always perform these validation steps after making changes:
+
+### Mandatory Pre-commit Validation
+Always run these commands before committing changes or the CI will fail:
+1. `uv run ruff check .` - must pass (linting)
+2. `uv run ruff format --check .` - must pass (formatting)  
+3. `uv run pytest` - must pass (673 tests)
+4. `uv run mypy src/` - must pass (type checking)
+
+### Application Functionality Testing
+After making changes to the core application logic:
+1. **Test CLI help**: `uv run power-playlists --help` - should show usage info
+2. **Test run command**: `uv run power-playlists run --help` - should show run options
+3. **Test config parsing**: `uv run power-playlists run --userconf samples/xkrogen.yaml` - should show validation error about missing inputs (this is expected behavior)
+4. **Verify error handling**: Check that configuration errors are caught gracefully
+5. **Note**: With a valid config file, the application will hang waiting for Spotify authentication - this is normal behavior and indicates successful config parsing
+
+### Manual Testing Scenarios
+- **Configuration validation**: Test with various YAML config files to ensure proper error messages
+- **Directory requirements**: Verify application creates/handles ~/.power-playlists directory correctly
+- **CLI argument parsing**: Test all command line options work as expected
+
+## Important Project Information
+
+### Timing Expectations and Timeouts
+- **Dependency installation**: <1 second - set timeout to 30+ seconds  
+- **Test suite**: ~2 seconds (673 tests) - NEVER CANCEL, set timeout to 60+ seconds
+- **Linting**: <0.1 seconds - set timeout to 30+ seconds
+- **Type checking**: ~2.5 seconds - NEVER CANCEL, set timeout to 60+ seconds
+- **Documentation generation**: ~1.6 seconds - set timeout to 30+ seconds
+
+### Key Project Structure
+```
+src/powerplaylists/           # Main application code
+├── main.py                  # CLI entry point and command definitions
+├── nodes.py                 # Playlist processing nodes (input, output, filters)
+├── spotify_client.py        # Spotify API client wrapper
+└── utils.py                 # Configuration and utility functions
+
+tests/                       # Comprehensive test suite (673 tests)
+├── test_mocks.py           # Mock Spotify client for testing
+├── test_node.py            # Node functionality tests
+├── test_spotify_client.py  # Spotify client tests
+└── testutil.py             # Test utilities
+
+samples/xkrogen.yaml        # Sample playlist configuration
+docs/CI_SETUP.md           # CI workflow documentation
+```
+
+### Configuration and Dependencies
+- **Python versions**: 3.9, 3.10, 3.11, 3.12 supported
+- **Package manager**: UV (modern, fast Python package manager)
+- **Build system**: Hatchling
+- **Key dependencies**: Click, spotipy, PyYAML, python-daemon
+- **Dev tools**: pytest, ruff, mypy, pdoc
+
+### Application Runtime Requirements
+- **Required directory**: `~/.power-playlists/userconf` must exist before running
+- **Configuration files**: YAML format in `~/.power-playlists/userconf/` by default
+- **Spotify authentication**: First run requires Spotify login (stored per config file)
+- **Log files**: Written to `~/.power-playlists/app.log`
+
+## CI/CD Information
+
+### GitHub Actions Workflow
+The CI runs on every push/PR to main branch and tests against Python 3.9-3.12:
+1. Install UV and Python
+2. Install dependencies with `uv sync --all-extras`
+3. Run tests with `uv run pytest`
+4. Run linting with `uv run ruff check .`
+5. Check formatting with `uv run ruff format --check .`
+6. Run type checking with `uv run mypy src/`
+
+### Common CI Failures and Solutions
+- **Linting failures**: Run `uv run ruff check .` and fix issues
+- **Formatting failures**: Run `uv run ruff format .` to auto-fix
+- **Test failures**: Run `uv run pytest -v` to see detailed failure info
+- **Type checking failures**: Run `uv run mypy src/` and fix type annotations
+
+## Common Development Tasks
+
+### Adding New Features
+1. Write tests first in appropriate test file
+2. Implement feature in relevant source file
+3. Run validation commands (see "Mandatory Pre-commit Validation")
+4. Test CLI functionality manually
+5. Update documentation if needed
+
+### Debugging Configuration Issues
+1. Use sample config as reference: `samples/xkrogen.yaml`
+2. Test with: `uv run power-playlists run --userconf your_config.yaml`
+3. Check logs at: `~/.power-playlists/app.log`
+4. Use `--verifymode incremental` for detailed debugging
+
+### Working with Tests
+- **Run all tests**: `uv run pytest`
+- **Run specific test file**: `uv run pytest tests/test_node.py`
+- **Run with verbose output**: `uv run pytest -v`
+- **Test coverage includes**: Mock Spotify client, playlist operations, configuration parsing
+
+## Reference Information
+
+### Quick Command Reference
+```bash
+# Setup
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+uv sync --all-extras
+mkdir -p ~/.power-playlists/userconf
+
+# Development
+uv run pytest                           # Run tests (~2s)
+uv run ruff check .                     # Lint (<0.1s)
+uv run ruff format .                    # Format (<0.1s)
+uv run mypy src/                        # Type check (~2.5s)
+
+# Application
+uv run power-playlists --help           # CLI help
+uv run power-playlists run --help       # Run command help
+```
+
+### File Patterns to Check After Changes
+- **After modifying nodes.py**: Always test playlist processing with sample config
+- **After modifying main.py**: Always test CLI commands and argument parsing  
+- **After modifying utils.py**: Always test configuration loading and validation
+- **After modifying spotify_client.py**: Always run test_spotify_client.py tests
+
+This tool processes Spotify playlists, so always validate that your changes don't break the core playlist processing workflow, even when making seemingly unrelated changes.
