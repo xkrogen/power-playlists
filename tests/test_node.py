@@ -4,10 +4,6 @@ from itertools import chain
 from typing import cast, Dict
 
 import pytest
-
-# Skip all tests in this module due to import issues with powerplaylists dependencies
-pytestmark = pytest.mark.skip(reason="Import issues with powerplaylists dependencies need to be resolved")
-
 import testutil
 from powerplaylists import nodes, utils
 from powerplaylists.nodes import (
@@ -22,6 +18,9 @@ from powerplaylists.nodes import (
 from powerplaylists.utils import AppConfig, VerifyMode, Constants
 from powerplaylists.spotify_client import SpotifyClient, PlaylistTrack
 from test_mocks import MockClient
+
+# Skip all tests in this module due to import issues with powerplaylists dependencies
+pytestmark = pytest.mark.skip(reason="Import issues with powerplaylists dependencies need to be resolved")
 
 
 def get_all_permutations_as_str(input_list):
