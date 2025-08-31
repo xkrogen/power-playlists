@@ -16,8 +16,6 @@ from powerplaylists.spotify_client import PlaylistTrack, SpotifyClient
 from powerplaylists.utils import AppConfig, Constants, VerifyMode
 
 
-
-
 def get_all_permutations_as_str(input_list):
     input_list = input_list.split(",") if isinstance(input_list, str) else input_list
     all_combinations_nested = [
