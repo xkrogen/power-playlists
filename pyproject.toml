@@ -66,3 +66,60 @@ include = [
     "README.rst",
     "LICENSE",
 ]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E4",   # Import errors  
+    "E7",   # Statement errors
+    "E9",   # Runtime errors
+    "F63",  # Invalid escapes
+    "F7",   # Syntax errors
+    "F82",  # Undefined names  
+]
+ignore = [
+    "F403",   # star imports - tolerate for now
+    "F405",   # may be undefined from star imports - tolerate for now
+    "E721",   # type comparisons - tolerate for now
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["T20"]  # Allow print statements in tests
+
+[tool.mypy]
+python_version = "3.12"
+# Less strict settings to start with
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+disallow_untyped_decorators = false
+no_implicit_optional = false
+warn_redundant_casts = false
+warn_unused_ignores = false
+warn_no_return = false
+warn_unreachable = false
+# Additional lenient settings for CI
+disable_error_code = ["var-annotated", "union-attr", "arg-type", "return-value", "index", "type-arg", "syntax"]
+
+[[tool.mypy.overrides]]
+module = [
+    "spotipy.*",
+    "lockfile.*", 
+    "psutil.*",
+    "daemon.*",
+]
+ignore_missing_imports = true
+
+[dependency-groups]
+dev = [
+    "mypy>=1.17.1",
+    "ruff>=0.12.11",
+    "types-psutil>=7.0.0.20250822",
+    "types-python-dateutil>=2.9.0.20250822",
+    "types-pyyaml>=6.0.12.20250822",
+]
