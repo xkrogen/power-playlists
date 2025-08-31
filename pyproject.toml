@@ -72,17 +72,18 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = [
-    "E4",   # Import errors  
-    "E7",   # Statement errors
-    "E9",   # Runtime errors
-    "F63",  # Invalid escapes
-    "F7",   # Syntax errors
-    "F82",  # Undefined names  
-]
-ignore = [
-    "F403",   # star imports - tolerate for now
-    "F405",   # may be undefined from star imports - tolerate for now
-    "E721",   # type comparisons - tolerate for now
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -90,20 +91,7 @@ ignore = [
 
 [tool.mypy]
 python_version = "3.12"
-# Less strict settings to start with
-warn_return_any = false
-warn_unused_configs = true
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-check_untyped_defs = false
-disallow_untyped_decorators = false
-no_implicit_optional = false
-warn_redundant_casts = false
-warn_unused_ignores = false
-warn_no_return = false
-warn_unreachable = false
-# Additional lenient settings for CI
-disable_error_code = ["var-annotated", "union-attr", "arg-type", "return-value", "index", "type-arg", "syntax"]
+# Use default strict MyPy settings
 
 [[tool.mypy.overrides]]
 module = [

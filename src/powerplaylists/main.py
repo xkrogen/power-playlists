@@ -7,7 +7,7 @@ import subprocess
 import sys
 import time
 from logging import handlers
-from typing import List, cast
+from typing import cast
 
 import click
 import lockfile
@@ -18,6 +18,7 @@ from lockfile import pidlockfile
 from spotipy.oauth2 import SpotifyPKCE
 
 from powerplaylists.spotify_client import SpotifyClient
+
 from . import nodes, utils
 from .nodes import OutputNode
 from .utils import AppConfig, Constants, UserConfig, VerifyMode
@@ -68,9 +69,11 @@ def cli(appconf: str):
 @click.option(
     "--force/--no-force", default=False, help="Supply --force to ignore any caching and force-update all playlists."
 )
-def run(userconf: List[str], verifymode: str, force: bool):
+def run(userconf: list[str], verifymode: str, force: bool):
     """Run a single iteration of the playlist updates."""
     app_conf = utils.global_conf
+    if app_conf is None:
+        raise RuntimeError("global_conf is not initialized")
     if verifymode != "DEFAULT":
         app_conf.verify_mode = VerifyMode[verifymode]
     app_conf.cache_force = force
@@ -273,7 +276,7 @@ def daemon_run_loop(app_conf: AppConfig):
         sys.exit(1)
 
 
-def perform_update_iteration(app_conf: AppConfig, user_conf_files: List[str]):
+def perform_update_iteration(app_conf: AppConfig, user_conf_files: list[str]):
     for f in user_conf_files:
         logging.info(f"Processing user conf file: {f}")
         user_conf = UserConfig(f)
@@ -294,7 +297,7 @@ def perform_update_iteration(app_conf: AppConfig, user_conf_files: List[str]):
             try:
                 node_list = nodes.resolve_node_list(spotify_client, user_conf.node_dicts.items())
             except ValueError as err:
-                raise ValueError(f"Unable to parse definition of nodes for {fname}: {err}")
+                raise ValueError(f"Unable to parse definition of nodes for {fname}: {err}") from err
             output_nodes = [cast(OutputNode, node) for node in node_list if isinstance(node, OutputNode)]
             if len(output_nodes) == 0:
                 raise ValueError(f"Unable to find any output nodes for {fname}")
@@ -302,7 +305,7 @@ def perform_update_iteration(app_conf: AppConfig, user_conf_files: List[str]):
                 for out_node in output_nodes:
                     out_node.create_or_update()
             except ValueError as err:
-                raise ValueError(f"Invalid definition for {fname}: {err}")
+                raise ValueError(f"Invalid definition for {fname}: {err}") from err
         finally:
             logging.info(f"Performed API calls for {fname}: {dict(spotify_client.api_call_counts)}")
             spotify_client.reset_api_call_counts()
