@@ -71,6 +71,8 @@ def cli(appconf: str):
 def run(userconf: List[str], verifymode: str, force: bool):
     """Run a single iteration of the playlist updates."""
     app_conf = utils.global_conf
+    if app_conf is None:
+        raise RuntimeError("global_conf is not initialized")
     if verifymode != "DEFAULT":
         app_conf.verify_mode = VerifyMode[verifymode]
     app_conf.cache_force = force
