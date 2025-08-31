@@ -73,17 +73,18 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = [
-    "E4",   # Import errors  
-    "E7",   # Statement errors
-    "E9",   # Runtime errors
-    "F63",  # Invalid escapes
-    "F7",   # Syntax errors
-    "F82",  # Undefined names  
-]
-ignore = [
-    "F403",   # star imports - tolerate for now
-    "F405",   # may be undefined from star imports - tolerate for now
-    "E721",   # type comparisons - tolerate for now
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
 ]
 
 [tool.ruff.lint.per-file-ignores]

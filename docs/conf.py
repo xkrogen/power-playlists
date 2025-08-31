@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Configuration file for the Sphinx documentation builder.
 #
@@ -8,9 +7,10 @@
 
 
 def run_apidoc(_):
-    from sphinx.ext.apidoc import main
     import os
     import sys
+
+    from sphinx.ext.apidoc import main
 
     sys.path.insert(0, os.path.abspath("../src/"))
     main(["-e", "-o", os.path.abspath("./_autodoc"), os.path.abspath("../src/powerplaylists"), "--force"])

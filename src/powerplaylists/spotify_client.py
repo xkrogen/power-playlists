@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+import html
 import logging
 import os
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime
 from typing import Callable, Dict, List, Optional, Union, Tuple, DefaultDict
 
 import yaml
 from dateutil import parser, tz
 from spotipy import Spotify
-import html
 
 from . import utils
 from .utils import AppConfig, Constants
@@ -22,7 +23,7 @@ class SpotifyClient:
         self.spotipy = spotipy_client
         self.playlist_cache = PlaylistCache(app_conf, self.__load_playlist) if enable_cache else None
         self.force_reload: bool = app_conf.cache_force
-        self.current_user_playlist_cache: Dict[str, PlaylistDescription] = dict()
+        self.current_user_playlist_cache: dict[str, PlaylistDescription] = dict()
         self.current_user_playlists_loaded = False
         self.api_call_counts: DefaultDict[str, int] = defaultdict(lambda: 0)
 
@@ -35,7 +36,7 @@ class SpotifyClient:
     def _increment_call_count(self, api_name):
         self.api_call_counts[api_name] = self.api_call_counts[api_name] + 1
 
-    def current_user_playlists(self, force_reload: bool = False) -> List[PlaylistDescription]:
+    def current_user_playlists(self, force_reload: bool = False) -> list[PlaylistDescription]:
         if force_reload or not self.current_user_playlists_loaded:
             self._increment_call_count("current_user_playlists")
             user_playlists_resp = self.spotipy.current_user_playlists()
@@ -94,7 +95,7 @@ class SpotifyClient:
             ],
         )
 
-    def saved_tracks(self) -> List[SavedTrack]:
+    def saved_tracks(self) -> list[SavedTrack]:
         self._increment_call_count("saved_tracks")
         resp = self.spotipy.current_user_saved_tracks()
         tracklist = resp["items"]
@@ -156,7 +157,7 @@ class SpotifyClient:
         range_start: int,
         insert_before: int,
         range_length: int = 1,
-        snapshot_id: Optional[str] = None,
+        snapshot_id: str | None = None,
     ) -> str:
         self._increment_call_count("playlist_reorder_items")
         response_dict = self.spotipy.playlist_reorder_items(
@@ -169,7 +170,7 @@ class SpotifyClient:
     ) -> str:
         # Sometimes snapshot_id ends up being a dict. It's not clear why, but it is necessary to then
         # go one level deeper to extract the real snapshot_id.
-        if isinstance(response, Dict):
+        if isinstance(response, dict):
             snapshot_id = response["snapshot_id"]
             depth += 1
             if depth > 2:
@@ -212,10 +213,10 @@ class SpotifyClient:
     def playlist_change_details(
         self,
         playlist_uri: str,
-        name: Optional[str] = None,
-        public: Optional[bool] = None,
-        collaborative: Optional[bool] = None,
-        description: Optional[str] = None,
+        name: str | None = None,
+        public: bool | None = None,
+        collaborative: bool | None = None,
+        description: str | None = None,
     ):
         if ":" in playlist_uri:
             # playlist_change_details only accepts an ID, not a URI
@@ -223,9 +224,9 @@ class SpotifyClient:
         self._increment_call_count("playlist_change_details")
         self.spotipy.playlist_change_details(playlist_uri, name, public, collaborative, description)
 
-    def saved_tracks_contains(self, track_uris: List[str]) -> List[bool]:
+    def saved_tracks_contains(self, track_uris: list[str]) -> list[bool]:
         start_idx = 0
-        track_matches: List[bool] = list()
+        track_matches: list[bool] = list()
         while start_idx < len(track_uris):
             next_track_uris = track_uris[start_idx : start_idx + Constants.PAGINATION_LIMIT]
             self._increment_call_count("current_user_saved_tracks_contains")
@@ -264,7 +265,7 @@ class PlaylistCache:
 
 
 class SpotifyWebObject:
-    def __init__(self, obj_dict: Dict):
+    def __init__(self, obj_dict: dict):
         self._obj_dict = obj_dict
         self.uri: str = self._get_required_prop("uri")
         self.oid: str = self._get_required_prop("id")
@@ -293,24 +294,24 @@ class SpotifyWebObject:
 
 # https://developer.spotify.com/documentation/web-api/reference/object-model/#user-object-public
 class User(SpotifyWebObject):
-    def __init__(self, obj_dict: Dict):
+    def __init__(self, obj_dict: dict):
         super().__init__(obj_dict)
         self.display_name: str = self._get_required_prop("display_name")
 
 
 # https://developer.spotify.com/documentation/web-api/reference/object-model/#artist-object-simplified
 class Artist(SpotifyWebObject):
-    def __init__(self, obj_dict: Dict):
+    def __init__(self, obj_dict: dict):
         super().__init__(obj_dict)
         self.name: str = self._get_required_prop("name")
 
 
 # https://developer.spotify.com/documentation/web-api/reference/object-model/#album-object-simplified
 class Album(SpotifyWebObject):
-    def __init__(self, obj_dict: Dict):
+    def __init__(self, obj_dict: dict):
         super().__init__(obj_dict)
         self.album_type: str = self._get_required_prop("album_type")  # 'album', 'single', 'compilation'
-        self.artists: List[Artist] = [Artist(artist) for artist in self._get_required_prop("artists")]
+        self.artists: list[Artist] = [Artist(artist) for artist in self._get_required_prop("artists")]
         self.name: str = self._get_required_prop("name")
         # release_date is YYYY, YYYY-MM, or YYYY-MM-DD
         try:
@@ -324,15 +325,15 @@ class Album(SpotifyWebObject):
 
 # https://developer.spotify.com/documentation/web-api/reference/object-model/#track-object-simplified
 class TrackSimplified(SpotifyWebObject):
-    def __init__(self, obj_dict: Dict):
+    def __init__(self, obj_dict: dict):
         super().__init__(obj_dict)
         self.name: str = self._get_required_prop("name")
-        self.artists: List[Artist] = [Artist(artist) for artist in self._get_required_prop("artists")]
+        self.artists: list[Artist] = [Artist(artist) for artist in self._get_required_prop("artists")]
 
 
 # https://developer.spotify.com/documentation/web-api/reference/object-model/#track-object-full
 class Track(TrackSimplified):
-    def __init__(self, obj_dict: Dict):
+    def __init__(self, obj_dict: dict):
         super().__init__(obj_dict)
         self.popularity: int = self._get_required_prop("popularity")  # from 0 to 100
         self.album: Album = Album(self._get_required_prop("album"))
@@ -340,7 +341,7 @@ class Track(TrackSimplified):
 
 # https://developer.spotify.com/documentation/web-api/reference/object-model/#playlist-object-simplified
 class PlaylistDescription(SpotifyWebObject):
-    def __init__(self, obj_dict: Dict):
+    def __init__(self, obj_dict: dict):
         super().__init__(obj_dict)
         self.name: str = self._get_required_prop("name")
         self.collaborative: bool = self._get_required_prop("collaborative")
@@ -354,21 +355,21 @@ class PlaylistDescription(SpotifyWebObject):
 
 # https://developer.spotify.com/documentation/web-api/reference/object-model/#playlist-object-full
 class Playlist(PlaylistDescription):
-    def __init__(self, obj_dict: Dict, all_tracks: List[PlaylistTrack]):
+    def __init__(self, obj_dict: dict, all_tracks: list[PlaylistTrack]):
         super().__init__(obj_dict)
         self.follower_count: int = obj_dict["followers"]["total"]
-        self.tracks: List[PlaylistTrack] = all_tracks
+        self.tracks: list[PlaylistTrack] = all_tracks
 
 
 # https://developer.spotify.com/documentation/web-api/reference/object-model/#saved-track-object
 class SavedTrack(Track):
-    def __init__(self, obj_dict: Dict):
+    def __init__(self, obj_dict: dict):
         super().__init__(obj_dict["track"])
         self.added_at: datetime = parser.isoparse(obj_dict["added_at"]).astimezone(tz.tzutc()).replace(tzinfo=None)
 
 
 # https://developer.spotify.com/documentation/web-api/reference/object-model/#playlist-track-object
 class PlaylistTrack(SavedTrack):
-    def __init__(self, obj_dict: Dict):
+    def __init__(self, obj_dict: dict):
         super().__init__(obj_dict)
         self.added_by: User = obj_dict["added_by"]
