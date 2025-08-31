@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "power-playlists"
 version = "0.1"
 description = "TODO"
-readme = "README.rst"
+readme = "README.md"
 license = {text = "MIT"}
 authors = [
     {name = "Erik Krogen", email = "erikkrogen@gmail.com"},
@@ -40,8 +40,7 @@ test = [
     "pytest~=7.4.4",
 ]
 docs = [
-    "sphinx==7.1.2",
-    "sphinx_rtd_theme==2.0.0",
+    "pdoc>=15.0.0",
 ]
 dev = [
     "power-playlists[test,docs]",
@@ -63,7 +62,7 @@ include = [
     "/tests",
     "/docs",
     "/samples",
-    "README.rst",
+    "README.md",
     "LICENSE",
 ]
 
