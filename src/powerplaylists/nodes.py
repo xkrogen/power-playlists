@@ -20,12 +20,12 @@ logger = logging.getLogger(__name__)
 
 
 def _load_nodes_from_dict(
-    spotify_client: SpotifyClient, unresolved_node_list: Iterable[(str, dict)]
+    spotify_client: SpotifyClient, unresolved_node_list: Iterable[tuple[str, dict]]
 ) -> dict[str, Node]:
     return {node_id: Node.from_dict(spotify_client, node_id, node_dict) for node_id, node_dict in unresolved_node_list}
 
 
-def resolve_node_list(spotify_client: SpotifyClient, unresolved_node_list: Iterable[(str, dict)]) -> list[Node]:
+def resolve_node_list(spotify_client: SpotifyClient, unresolved_node_list: Iterable[tuple[str, dict]]) -> list[Node]:
     node_map_unresolved = _load_nodes_from_dict(spotify_client, unresolved_node_list)
     node_map = node_map_unresolved
     while len([n for n in node_map_unresolved.values() if isinstance(n, TemplateNode)]) > 0:
@@ -62,13 +62,13 @@ class Node(abc.ABC):
     :meta private:
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         self.spotify: SpotifyClient = kwargs["spotify_client"]
         self.nid: str = kwargs["node_id"]
         self.__fulldict: dict = kwargs
 
     @staticmethod
-    def from_dict(spotify_client: SpotifyClient, node_id: str, node_dict: dict):
+    def from_dict(spotify_client: SpotifyClient, node_id: str, node_dict: dict) -> Node:
         if "type" not in node_dict:
             raise ValueError(f'Invalid definition for node <{node_id}>; unable to find "type" specifier')
         ntype = node_dict.pop("type")
@@ -235,16 +235,16 @@ class AllTracksNode(InputNode):
 
 
 class NonleafNode(Node, abc.ABC):
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.input_nids: list[str | None] = kwargs.get("inputs", [kwargs.get("input")])
         if len(self.input_nids) == 1 and self.input_nids[0] is None:
             raise ValueError(f'No input found for node <{self.nid}>. Looked for "input" and "inputs"')
         self.inputs: list[Node] = list()
 
-    def resolve_inputs(self, node_dict: dict[str, Node]):
+    def resolve_inputs(self, node_dict: dict[str, Node]) -> None:
         try:
-            self.inputs = [node_dict[node_id] for node_id in self.input_nids]
+            self.inputs = [node_dict[node_id] for node_id in self.input_nids if node_id is not None]
         except KeyError as ke:
             raise ValueError(f"Found nonexistent node_id in inputs of node <{self.nid}>: {ke}") from ke
 
@@ -278,7 +278,7 @@ class OutputNode(NonleafNode):
     def playlist_name(self) -> str:
         return self.get_required_prop("playlist_name")
 
-    def create_or_update(self):
+    def create_or_update(self) -> None:
         is_updated = False
         playlist_list = self.spotify.current_user_playlists()
         matching_playlist_uris = [pl.uri for pl in playlist_list if pl.name == self.playlist_name()]
@@ -324,7 +324,7 @@ class OutputNode(NonleafNode):
         expected_output_track_uri_dict: dict[str, int] = dict()
         for track in self.tracks():
             expected_output_track_uri_dict[track.uri] = expected_output_track_uri_dict.get(track.uri, 0) + 1
-        required_removals: list[(str, int)] = list()
+        required_removals: list[tuple[str, int]] = list()
         remaining_output_track_uri_dict = expected_output_track_uri_dict.copy()
         expected_output_track_uris_after_removals: list[str] = list()
         for idx, uri in enumerate(existing_track_uris):
@@ -419,6 +419,8 @@ class OutputNode(NonleafNode):
     def verify_playlist_contents(
         self, expected_uris: list[str], playlist_uri: str, action_description: str, is_end: bool = False
     ):
+        if utils.global_conf is None:
+            raise RuntimeError("global_conf is not initialized")
         if utils.global_conf.verify_mode == VerifyMode.INCREMENTAL or (
             utils.global_conf.verify_mode == VerifyMode.END and is_end
         ):
@@ -844,7 +846,7 @@ class DynamicTemplateNode(TemplateNode):
         else:
             raise ValueError(f"Unsupported type ({type(obj)}): {obj}")
 
-    def resolve_template(self):
+    def resolve_template(self) -> dict[str, Node]:
         template_nodes: dict[str, Any] = self.get_required_prop("template")
         template_instances: list[dict[str, Any]] = self.get_required_prop("instances")
         node_dict = {}
