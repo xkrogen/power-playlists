@@ -5,26 +5,27 @@ import functools
 import inspect
 import logging
 import re
-from datetime import timedelta, datetime
-from typing import Any, Iterable, cast, Dict, List, Optional, Set, Tuple, Union
+from collections.abc import Iterable
+from datetime import datetime, timedelta
+from typing import Any, cast
 
 import spotipy
 from dateutil import parser
 
-from .spotify_client import SpotifyClient, Track, SavedTrack, PlaylistTrack
-from .utils import VerifyMode, Constants
 from . import utils
+from .spotify_client import SavedTrack, SpotifyClient, Track
+from .utils import Constants, VerifyMode
 
 logger = logging.getLogger(__name__)
 
 
 def _load_nodes_from_dict(
-    spotify_client: SpotifyClient, unresolved_node_list: Iterable[(str, Dict)]
-) -> Dict[str, Node]:
+    spotify_client: SpotifyClient, unresolved_node_list: Iterable[(str, dict)]
+) -> dict[str, Node]:
     return {node_id: Node.from_dict(spotify_client, node_id, node_dict) for node_id, node_dict in unresolved_node_list}
 
 
-def resolve_node_list(spotify_client: SpotifyClient, unresolved_node_list: Iterable[(str, Dict)]) -> List[Node]:
+def resolve_node_list(spotify_client: SpotifyClient, unresolved_node_list: Iterable[(str, dict)]) -> list[Node]:
     node_map_unresolved = _load_nodes_from_dict(spotify_client, unresolved_node_list)
     node_map = node_map_unresolved
     while len([n for n in node_map_unresolved.values() if isinstance(n, TemplateNode)]) > 0:
@@ -64,10 +65,10 @@ class Node(abc.ABC):
     def __init__(self, **kwargs):
         self.spotify: SpotifyClient = kwargs["spotify_client"]
         self.nid: str = kwargs["node_id"]
-        self.__fulldict: Dict = kwargs
+        self.__fulldict: dict = kwargs
 
     @staticmethod
-    def from_dict(spotify_client: SpotifyClient, node_id: str, node_dict: Dict):
+    def from_dict(spotify_client: SpotifyClient, node_id: str, node_dict: dict):
         if "type" not in node_dict:
             raise ValueError(f'Invalid definition for node <{node_id}>; unable to find "type" specifier')
         ntype = node_dict.pop("type")
@@ -85,7 +86,7 @@ class Node(abc.ABC):
         return matched_node_class[0](spotify_client=spotify_client, node_id=node_id, **node_dict)
 
     @abc.abstractmethod
-    def tracks(self) -> List[Track]:
+    def tracks(self) -> list[Track]:
         pass
 
     def __eq__(self, other):
@@ -100,10 +101,11 @@ class Node(abc.ABC):
         else:
             raise NotImplementedError
 
-    def resolve_inputs(self, node_dict: Dict[str, Node]) -> None:
+    @abc.abstractmethod
+    def resolve_inputs(self, node_dict: dict[str, Node]) -> None:
         pass
 
-    def resolve_template(self) -> Dict[str, Node]:
+    def resolve_template(self) -> dict[str, Node]:
         return {self.nid: self}
 
     def has_prop(self, prop_key: str):
@@ -136,7 +138,7 @@ class InputNode(Node, abc.ABC):
         self.track_cache = None
 
     @abc.abstractmethod
-    def _fetch_tracks_impl(self) -> List[Track]:
+    def _fetch_tracks_impl(self) -> list[Track]:
         pass
 
     def tracks(self):
@@ -223,16 +225,16 @@ class AllTracksNode(InputNode):
 class NonleafNode(Node, abc.ABC):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.input_nids: List[Optional[str]] = kwargs.get("inputs", [kwargs.get("input")])
+        self.input_nids: list[str | None] = kwargs.get("inputs", [kwargs.get("input")])
         if len(self.input_nids) == 1 and self.input_nids[0] is None:
             raise ValueError(f'No input found for node <{self.nid}>. Looked for "input" and "inputs"')
-        self.inputs: List[Node] = list()
+        self.inputs: list[Node] = list()
 
-    def resolve_inputs(self, node_dict: Dict[str, Node]):
+    def resolve_inputs(self, node_dict: dict[str, Node]):
         try:
             self.inputs = [node_dict[node_id] for node_id in self.input_nids]
         except KeyError as ke:
-            raise ValueError(f"Found nonexistent node_id in inputs of node <{self.nid}>: {ke}")
+            raise ValueError(f"Found nonexistent node_id in inputs of node <{self.nid}>: {ke}") from ke
 
 
 class OutputNode(NonleafNode):
@@ -307,12 +309,12 @@ class OutputNode(NonleafNode):
         expected_output_track_uris = [track.uri for track in self.tracks()]
 
         # Step 1: Remove tracks that shouldn't be there at all
-        expected_output_track_uri_dict: Dict[str, int] = dict()
+        expected_output_track_uri_dict: dict[str, int] = dict()
         for track in self.tracks():
             expected_output_track_uri_dict[track.uri] = expected_output_track_uri_dict.get(track.uri, 0) + 1
-        required_removals: List[(str, int)] = list()
+        required_removals: list[(str, int)] = list()
         remaining_output_track_uri_dict = expected_output_track_uri_dict.copy()
-        expected_output_track_uris_after_removals: List[str] = list()
+        expected_output_track_uris_after_removals: list[str] = list()
         for idx, uri in enumerate(existing_track_uris):
             remaining = remaining_output_track_uri_dict.get(uri, 0)
             if remaining == 0:
@@ -335,10 +337,10 @@ class OutputNode(NonleafNode):
         playlist = self.spotify.playlist(playlist.uri, force_reload=True)
         snapshot_id = playlist.snapshot_id
 
-        existing_track_uri_dict: Dict[str, int] = dict()
+        existing_track_uri_dict: dict[str, int] = dict()
         for uri in existing_track_uris:
             existing_track_uri_dict[uri] = existing_track_uri_dict.get(uri, 0) + 1
-        required_addition_uris: List[str] = list()
+        required_addition_uris: list[str] = list()
         remaining_existing_track_uri_dict = existing_track_uri_dict.copy()
         for uri in expected_output_track_uris:
             remaining = remaining_existing_track_uri_dict.get(uri, 0)
@@ -403,7 +405,7 @@ class OutputNode(NonleafNode):
             logging.info(f"Playlist `{self.playlist_name()}` was not updated because no changes were detected.")
 
     def verify_playlist_contents(
-        self, expected_uris: List[str], playlist_uri: str, action_description: str, is_end: bool = False
+        self, expected_uris: list[str], playlist_uri: str, action_description: str, is_end: bool = False
     ):
         if utils.global_conf.verify_mode == VerifyMode.INCREMENTAL or (
             utils.global_conf.verify_mode == VerifyMode.END and is_end
@@ -431,7 +433,7 @@ class LogicNode(NonleafNode, abc.ABC):
                 f"node <{self.nid}> had {len(self.inputs)}"
             )
 
-    def _get_single_input_tracks(self) -> List[Track]:
+    def _get_single_input_tracks(self) -> list[Track]:
         self._assert_input_count(1)
         return self.inputs[0].tracks()
 
@@ -760,7 +762,7 @@ class LikedNode(LogicNode):
             self._assert_input_count(1)
             input_tracks = self._get_single_input_tracks()
             matches = self.spotify.saved_tracks_contains([track.uri for track in input_tracks])
-            self._track_cache = [track for (track, matched) in zip(input_tracks, matches) if matched]
+            self._track_cache = [track for (track, matched) in zip(input_tracks, matches, strict=False) if matched]
         return self._track_cache
 
 
@@ -801,10 +803,10 @@ class DynamicTemplateNode(TemplateNode):
     def ntype(cls):
         return "dynamic_template"
 
-    def copy_replace(self, obj, var_map: Dict[str, Any]):
-        if isinstance(obj, Dict):
+    def copy_replace(self, obj, var_map: dict[str, Any]):
+        if isinstance(obj, dict):
             return {self.copy_replace(k, var_map): self.copy_replace(v, var_map) for k, v in obj.items()}
-        elif isinstance(obj, List):
+        elif isinstance(obj, list):
             return [self.copy_replace(ele, var_map) for ele in obj]
         elif isinstance(obj, str):
             varmatch = re.fullmatch(r"\{([^{}]+)}", obj)
@@ -827,8 +829,8 @@ class DynamicTemplateNode(TemplateNode):
             raise ValueError(f"Unsupported type ({type(obj)}): {obj}")
 
     def resolve_template(self):
-        template_nodes: Dict[str, Any] = self.get_required_prop("template")
-        template_instances: List[Dict[str, Any]] = self.get_required_prop("instances")
+        template_nodes: dict[str, Any] = self.get_required_prop("template")
+        template_instances: list[dict[str, Any]] = self.get_required_prop("instances")
         node_dict = {}
 
         for var_map in template_instances:

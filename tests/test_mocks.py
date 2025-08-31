@@ -2,17 +2,15 @@ import copy
 import random
 import string
 from collections import defaultdict
-from typing import Dict, List
 
 import pytest
 import spotipy
-
 import testutil
 
 
 class MockClient(spotipy.Spotify):
-    def __init__(self, track_uri_list, other_playlists: List[Dict[str, str]] = None):
-        if type(track_uri_list) == str:
+    def __init__(self, track_uri_list, other_playlists: list[dict[str, str]] = None):
+        if isinstance(track_uri_list, str):
             track_uri_list = track_uri_list.split(",")
         self.playlists = [
             testutil.create_playlist_dict(
@@ -23,7 +21,7 @@ class MockClient(spotipy.Spotify):
             self.playlists.extend(other_playlists)
         self.api_call_counts = defaultdict(lambda: 0)
 
-    def _get_playlist(self, uri=None, playlist_id=None) -> Dict:
+    def _get_playlist(self, uri=None, playlist_id=None) -> dict:
         if uri is not None:
             return [playlist for playlist in self.playlists if playlist["uri"] == uri][0]
         elif playlist_id is not None:
@@ -62,10 +60,9 @@ class MockClient(spotipy.Spotify):
         self.__increment_call_count("playlist_remove_specific_occurrences_of_items")
         playlist = self._get_playlist(uri=uri)
         items = playlist["tracks"]["items"]
-        removal_cnt = 0
         removal_tuples = [(removal_dict["uri"], removal_dict["positions"][0]) for removal_dict in removal_dict_list]
         removal_tuples.sort(key=lambda tup: tup[1])  # sort by pos
-        for uri, pos in removal_tuples:
+        for removal_cnt, (uri, pos) in enumerate(removal_tuples):
             pos_corrected = pos - removal_cnt
             if items[pos_corrected]["track"]["uri"] != uri:
                 raise ValueError(
@@ -73,14 +70,13 @@ class MockClient(spotipy.Spotify):
                     f"but expected <{uri}>. Full list: <{items}>"
                 )
             items.pop(pos_corrected)
-            removal_cnt += 1
         playlist["tracks"]["total"] = len(items)
         return {"snapshot_id": "ignored"}
 
     def playlist_reorder_items(self, uri, range_start, insert_before, range_length=1, snapshot_id=None):
         self.__increment_call_count("playlist_reorder_items")
         playlist = self._get_playlist(uri=uri)
-        items: List = playlist["tracks"]["items"]
+        items: list = playlist["tracks"]["items"]
         if range_start == insert_before:
             return {"snapshot_id": "ignored"}  # no-op
         if range_length != 1:
@@ -97,7 +93,7 @@ class MockClient(spotipy.Spotify):
     def playlist_add_items(self, uri, item_uris, position=None, snapshot_id=None):
         self.__increment_call_count("playlist_add_items")
         playlist = self._get_playlist(uri=uri)
-        curr_items: List = playlist["tracks"]["items"]
+        curr_items: list = playlist["tracks"]["items"]
         position = len(curr_items) if position is None else position
         if position > len(curr_items):
             raise ValueError(f"Received invalid position <{position}> for playlist of length {len(curr_items)}")
@@ -163,6 +159,6 @@ class TestMockClient:
         mock_client = MockClient("t1,t2,t3")
         try:
             mock_client.playlist_add_items("test_pl_uri", ["t4"], 10)
-            assert False
+            raise AssertionError("Expected ValueError to be raised")
         except ValueError as err:
             assert "invalid position" in str(err)

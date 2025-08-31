@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 import os
 import sys
-from typing import *
+from typing import Any
 
 import yaml
 
@@ -12,7 +12,7 @@ def is_macos() -> bool:
     return sys.platform == "darwin"
 
 
-def to_bool(bool_or_str: Optional[Union[str, bool]]) -> bool:
+def to_bool(bool_or_str: str | bool | None) -> bool:
     if bool_or_str is None:
         return False
     elif isinstance(bool_or_str, bool):
@@ -78,11 +78,11 @@ class Constants:
     """
 
 
-global_conf: Union[AppConfig, None] = None
+global_conf: AppConfig | None = None
 
 
 class AppConfig:
-    def __init__(self, app_config_path: Union[str, os.PathLike[str], None] = None):
+    def __init__(self, app_config_path: str | os.PathLike[str] | None = None):
         self.client_id = Constants.CLIENT_ID_DEFAULT
         self.client_redirect_uri = Constants.CLIENT_REDIRECT_URI_DEFAULT
         self.user_config_dir = Constants.USER_CONFIG_DIR_DEFAULT
@@ -101,12 +101,12 @@ class AppConfig:
         elif os.path.isfile(Constants.APP_CONFIG_FILE_DEFAULT):
             self.__load_from_file(Constants.APP_CONFIG_FILE_DEFAULT)
 
-    def __load_from_file(self, path: Union[str, os.PathLike[str]]) -> None:
+    def __load_from_file(self, path: str | os.PathLike[str]) -> None:
         with open(path) as conf_file:
             conf_yaml = yaml.safe_load(conf_file)
 
         def get_or_default(key: str, default: Any) -> Any:
-            return conf_yaml[key] if key in conf_yaml else default
+            return conf_yaml.get(key, default)
 
         self.client_id = get_or_default("client_id", self.client_id)
         self.client_redirect_uri = get_or_default("client_redirect_uri", self.client_redirect_uri)
@@ -120,7 +120,7 @@ class AppConfig:
         self.daemon_pidfile = get_or_default("daemon_pidfile", self.daemon_pidfile)
         self.verify_mode = VerifyMode[get_or_default("verify_mode", self.verify_mode.name).upper()]
 
-    def get_user_config_files(self, user_config_file_paths: Optional[List[str]] = None) -> List[str]:
+    def get_user_config_files(self, user_config_file_paths: list[str] | None = None) -> list[str]:
         if user_config_file_paths is not None and len(user_config_file_paths) != 0:
             for user_config_file_path in user_config_file_paths:
                 if not os.path.isfile(user_config_file_path):
@@ -137,9 +137,9 @@ class AppConfig:
 
 
 class UserConfig:
-    def __init__(self, user_config_path: Union[str, os.PathLike[str]]):
+    def __init__(self, user_config_path: str | os.PathLike[str]):
         with open(user_config_path) as conf_file:
             conf_yaml = yaml.safe_load(conf_file)
-        if not isinstance(conf_yaml, Dict) or len(conf_yaml) < 1:
+        if not isinstance(conf_yaml, dict) or len(conf_yaml) < 1:
             raise ValueError(f"Invalid node definition found within user conf file: {user_config_path}")
-        self.node_dicts: Dict[str, Dict[str, Any]] = conf_yaml
+        self.node_dicts: dict[str, dict[str, Any]] = conf_yaml

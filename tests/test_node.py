@@ -1,29 +1,25 @@
 import itertools
 import math
 from itertools import chain
-from typing import cast, Dict
+from typing import cast
 
 import pytest
 import testutil
+from test_mocks import MockClient
+
 from powerplaylists import nodes, utils
 from powerplaylists.nodes import (
-    PlaylistNode,
     OutputNode,
-    DeduplicateNode,
-    LikedNode,
-    CombinerNode,
-    AllTracksNode,
-    LimitNode,
+    PlaylistNode,
 )
-from powerplaylists.utils import AppConfig, VerifyMode, Constants
-from powerplaylists.spotify_client import SpotifyClient, PlaylistTrack
-from test_mocks import MockClient
+from powerplaylists.spotify_client import PlaylistTrack, SpotifyClient
+from powerplaylists.utils import AppConfig, Constants, VerifyMode
 
 
 
 
 def get_all_permutations_as_str(input_list):
-    input_list = input_list.split(",") if type(input_list) == str else input_list
+    input_list = input_list.split(",") if isinstance(input_list, str) else input_list
     all_combinations_nested = [
         itertools.combinations(["t1", "t2", "t3", "t4", "t5"], r) for r in range(1, len(input_list) + 1)
     ]
@@ -81,7 +77,7 @@ class TestNode:
 
     @pytest.mark.parametrize("expected_outputs", get_all_permutations_as_str("t1,t2,t3,t4,t5"))
     def test_playlist_output_diff_logic(self, expected_outputs):
-        expected_output_list = expected_outputs.split(",") if type(expected_outputs) == str else expected_outputs
+        expected_output_list = expected_outputs.split(",") if isinstance(expected_outputs, str) else expected_outputs
         mock_client = MockClient("t1,t2,t3")
         out_node = OutputNode(
             spotify_client=self.get_nocache_client(mock_client), node_id="test", inputs=list(), playlist_name="test_pl"
@@ -93,7 +89,7 @@ class TestNode:
 
     @pytest.mark.parametrize("expected_outputs", get_all_permutations_as_str("t1,t1,t2,t1,t3"))
     def test_playlist_output_diff_logic_with_duplicates(self, expected_outputs):
-        expected_output_list = expected_outputs.split(",") if type(expected_outputs) == str else expected_outputs
+        expected_output_list = expected_outputs.split(",") if isinstance(expected_outputs, str) else expected_outputs
         mock_client = MockClient("t1,t3,t3")
         out_node = OutputNode(
             spotify_client=self.get_nocache_client(mock_client), node_id="test", inputs=list(), playlist_name="test_pl"
@@ -138,7 +134,7 @@ class TestNode:
         ]
         resolved = nodes.resolve_node_list(self.get_nocache_client(mock_client), input_nodes)
         assert len(resolved) == 4
-        out_nodes = [cast(OutputNode, n) for n in resolved if type(n) == OutputNode]
+        out_nodes = [cast(OutputNode, n) for n in resolved if isinstance(n, OutputNode)]
         assert len(out_nodes) == 1
         assert out_nodes[0].inputs[0].ntype() == "dedup"
 
@@ -153,7 +149,7 @@ class TestNode:
         ]
         try:
             nodes.resolve_node_list(self.get_nocache_client(mock_client), input_nodes)
-            assert False
+            raise AssertionError("Expected ValueError to be raised")
         except ValueError as err:
             assert "invalid scenario definition" in str(err)
 
@@ -177,8 +173,8 @@ class TestNode:
         assert len(resolved) == 6
         for ntype in ["dedup", "sort", "combiner", "output"]:
             assert sum([1 for n in resolved if n.ntype() == ntype]) == 1
-        assert sum([1 for n in resolved if type(n) == PlaylistNode]) == 2
-        assert [cast(OutputNode, n) for n in resolved if type(n) == OutputNode][0].playlist_name() == "out_pl_name"
+        assert sum([1 for n in resolved if isinstance(n, PlaylistNode)]) == 2
+        assert [cast(OutputNode, n) for n in resolved if isinstance(n, OutputNode)][0].playlist_name() == "out_pl_name"
 
     def test_resolve_node_list_dynamic_template(self):
         playlists = [testutil.create_empty_playlist_dict(f"BAR-{i}") for i in range(0, 3)]
