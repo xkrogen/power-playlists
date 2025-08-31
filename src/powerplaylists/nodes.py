@@ -20,12 +20,12 @@ logger = logging.getLogger(__name__)
 
 
 def _load_nodes_from_dict(
-    spotify_client: SpotifyClient, unresolved_node_list: Iterable[Tuple[str, Dict]]
-) -> Dict[str, Node]:
+    spotify_client: SpotifyClient, unresolved_node_list: Iterable[tuple[str, dict]]
+) -> dict[str, Node]:
     return {node_id: Node.from_dict(spotify_client, node_id, node_dict) for node_id, node_dict in unresolved_node_list}
 
 
-def resolve_node_list(spotify_client: SpotifyClient, unresolved_node_list: Iterable[Tuple[str, Dict]]) -> List[Node]:
+def resolve_node_list(spotify_client: SpotifyClient, unresolved_node_list: Iterable[tuple[str, dict]]) -> list[Node]:
     node_map_unresolved = _load_nodes_from_dict(spotify_client, unresolved_node_list)
     node_map = node_map_unresolved
     while len([n for n in node_map_unresolved.values() if isinstance(n, TemplateNode)]) > 0:
@@ -68,7 +68,7 @@ class Node(abc.ABC):
         self.__fulldict: dict = kwargs
 
     @staticmethod
-    def from_dict(spotify_client: SpotifyClient, node_id: str, node_dict: Dict) -> "Node":
+    def from_dict(spotify_client: SpotifyClient, node_id: str, node_dict: dict) -> Node:
         if "type" not in node_dict:
             raise ValueError(f'Invalid definition for node <{node_id}>; unable to find "type" specifier')
         ntype = node_dict.pop("type")
@@ -242,7 +242,7 @@ class NonleafNode(Node, abc.ABC):
             raise ValueError(f'No input found for node <{self.nid}>. Looked for "input" and "inputs"')
         self.inputs: list[Node] = list()
 
-    def resolve_inputs(self, node_dict: Dict[str, Node]) -> None:
+    def resolve_inputs(self, node_dict: dict[str, Node]) -> None:
         try:
             self.inputs = [node_dict[node_id] for node_id in self.input_nids if node_id is not None]
         except KeyError as ke:
@@ -324,7 +324,7 @@ class OutputNode(NonleafNode):
         expected_output_track_uri_dict: dict[str, int] = dict()
         for track in self.tracks():
             expected_output_track_uri_dict[track.uri] = expected_output_track_uri_dict.get(track.uri, 0) + 1
-        required_removals: List[Tuple[str, int]] = list()
+        required_removals: list[tuple[str, int]] = list()
         remaining_output_track_uri_dict = expected_output_track_uri_dict.copy()
         expected_output_track_uris_after_removals: list[str] = list()
         for idx, uri in enumerate(existing_track_uris):
@@ -846,9 +846,9 @@ class DynamicTemplateNode(TemplateNode):
         else:
             raise ValueError(f"Unsupported type ({type(obj)}): {obj}")
 
-    def resolve_template(self) -> Dict[str, Node]:
-        template_nodes: Dict[str, Any] = self.get_required_prop("template")
-        template_instances: List[Dict[str, Any]] = self.get_required_prop("instances")
+    def resolve_template(self) -> dict[str, Node]:
+        template_nodes: dict[str, Any] = self.get_required_prop("template")
+        template_instances: list[dict[str, Any]] = self.get_required_prop("instances")
         node_dict = {}
 
         for var_map in template_instances:

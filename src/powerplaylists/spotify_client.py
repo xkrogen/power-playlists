@@ -6,7 +6,6 @@ import os
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import datetime
-from typing import Callable, Dict, List, Optional, Union, Tuple, DefaultDict
 
 import yaml
 from dateutil import parser, tz
@@ -25,7 +24,7 @@ class SpotifyClient:
         self.force_reload: bool = app_conf.cache_force
         self.current_user_playlist_cache: dict[str, PlaylistDescription] = dict()
         self.current_user_playlists_loaded = False
-        self.api_call_counts: DefaultDict[str, int] = defaultdict(lambda: 0)
+        self.api_call_counts: defaultdict[str, int] = defaultdict(lambda: 0)
 
     def current_user(self) -> User:
         return User(self.spotipy.current_user())
@@ -124,7 +123,7 @@ class SpotifyClient:
         return new_playlist
 
     def playlist_remove_specific_occurrences_of_items(
-        self, playlist_uri: str, removal_tuple_list: List[Tuple[str, int]], snapshot_id: Optional[str] = None
+        self, playlist_uri: str, removal_tuple_list: list[tuple[str, int]], snapshot_id: str | None = None
     ) -> str:
         tracks_removed = 0
         # For pagination of removals, start at the end and work backwards to avoid changing the indices
@@ -166,7 +165,7 @@ class SpotifyClient:
         return self.get_snapshot_id("playlist_reorder_items", response_dict)
 
     def get_snapshot_id(
-        self, api_name: str, response: Union[str, Dict], original_resp: Optional[dict] = None, depth: int = 0
+        self, api_name: str, response: str | dict, original_resp: dict | None = None, depth: int = 0
     ) -> str:
         # Sometimes snapshot_id ends up being a dict. It's not clear why, but it is necessary to then
         # go one level deeper to extract the real snapshot_id.
@@ -189,7 +188,7 @@ class SpotifyClient:
             snapshot_id = response
         return snapshot_id
 
-    def playlist_add_items(self, playlist_uri: str, item_uris: List[str], snapshot_id: Optional[str] = None) -> str:
+    def playlist_add_items(self, playlist_uri: str, item_uris: list[str], snapshot_id: str | None = None) -> str:
         if len(item_uris) == 0:
             # If no items to add, return current snapshot_id or fetch it
             if snapshot_id is not None:
@@ -244,7 +243,7 @@ class PlaylistCache:
         if not os.path.exists(self.playlist_cache_dir):
             os.makedirs(self.playlist_cache_dir, exist_ok=True)
 
-    def get_playlist(self, playlist_uri: str, force_reload: bool = False) -> Tuple[Playlist, bool]:
+    def get_playlist(self, playlist_uri: str, force_reload: bool = False) -> tuple[Playlist, bool]:
         playlist_path = self.__get_playlist_file(playlist_uri)
         if not force_reload and os.path.exists(playlist_path):
             with open(playlist_path) as f:
