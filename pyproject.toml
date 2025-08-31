@@ -40,8 +40,7 @@ test = [
     "pytest~=7.4.4",
 ]
 docs = [
-    "sphinx==7.1.2",
-    "sphinx_rtd_theme==2.0.0",
+    "pdoc>=15.0.0",
 ]
 dev = [
     "power-playlists[test,docs]",
