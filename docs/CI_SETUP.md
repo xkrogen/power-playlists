@@ -12,7 +12,7 @@ This document summarizes the GitHub Actions CI setup implemented for the power-p
 ### Quality Gates
 
 1. **Dependency Installation**: Installs all project dependencies including dev tools
-2. **Testing**: Runs all test modules (673 tests passing)
+2. **Testing**: Runs all test modules
 3. **Linting**: Enforces code quality with ruff (catching critical errors)
 4. **Formatting**: Ensures consistent code formatting across the codebase
 5. **Type Checking**: Runs mypy for type safety (informational for now)
@@ -32,7 +32,7 @@ This document summarizes the GitHub Actions CI setup implemented for the power-p
 
 ✅ **Working**: 
 - CI pipeline passes successfully
-- 673 tests running and passing (all tests now enabled)
+- All tests running and passing
 - Critical linting rules enforced
 - Code formatting enforced
 - Multi-Python version support
