@@ -205,3 +205,37 @@ class TestNode:
                 input=f"FOO-{i} foo",
                 playlist_name=f"FOO-{i} - BAR-{i}",
             )
+
+    def test_dynamic_template_invalid_node_definition_substitution(self):
+        """
+        Test that DynamicTemplateNode raises a clear error when template substitution
+        results in non-dictionary node definitions (reproduces GitHub issue #20).
+        """
+        playlists = [testutil.create_empty_playlist_dict("test_uri")]
+        mock_client = MockClient([], playlists)
+
+        # Template where a variable substitution replaces entire node definition with non-dict
+        input_nodes = [
+            (
+                "problematic_template",
+                {
+                    "type": "dynamic_template",
+                    "template": {
+                        "node1": "{some_var}"  # This will be replaced with integer
+                    },
+                    "instances": [
+                        {"some_var": 50}  # Integer, not a dictionary
+                    ],
+                },
+            )
+        ]
+
+        sp_client = self.get_nocache_client(mock_client)
+
+        with pytest.raises(ValueError) as exc_info:
+            nodes.resolve_node_list(sp_client, input_nodes)
+
+        error_msg = str(exc_info.value)
+        assert "Template variable substitution resulted in invalid node definition" in error_msg
+        assert "node1" in error_msg
+        assert "Expected dictionary but got int: 50" in error_msg

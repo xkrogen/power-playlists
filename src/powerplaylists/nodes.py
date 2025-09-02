@@ -853,6 +853,15 @@ class DynamicTemplateNode(TemplateNode):
 
         for var_map in template_instances:
             instance_map = self.copy_replace(template_nodes, var_map)
+            # Validate that all values in instance_map are dictionaries (node definitions)
+            for node_id, node_def in instance_map.items():
+                if not isinstance(node_def, dict):
+                    raise ValueError(
+                        f"Template variable substitution resulted in invalid node definition for '{node_id}'. "
+                        f"Expected dictionary but got {type(node_def).__name__}: {node_def}. "
+                        f"Check that template variables used as entire node definitions are not replaced "
+                        f"with non-dictionary values."
+                    )
             node_dict.update(_load_nodes_from_dict(self.spotify, instance_map.items()))
 
         return node_dict
