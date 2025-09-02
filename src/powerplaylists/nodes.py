@@ -672,6 +672,8 @@ class AddedAtFilterNode(TimeBasedFilterNode):
     """
     An intermediate node which filters the tracks from its input depending on the time they were added (to saved
     tracks or to their playlists). See :class:`TimeBasedFilterNode` for full details.
+
+    Type: ``filter_time_added``
     """
 
     def __init__(self, **kwargs):
@@ -689,6 +691,8 @@ class ReleaseDateFilterNode(TimeBasedFilterNode):
     """
     An intermediate node which filters the tracks from its input depending on the time they were release.
     See :class:`TimeBasedFilterNode` for full details.
+
+    Type: ``filter_release_date``
     """
 
     def __init__(self, **kwargs):

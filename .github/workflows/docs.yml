@@ -39,6 +39,9 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
       
+      - name: Generate node reference
+        run: uv run python scripts/generate_node_docs.py
+
       - name: Build documentation
         run: uv run pdoc src/powerplaylists -o docs-output
       
