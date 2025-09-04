@@ -37,46 +37,17 @@ def parse_docstring(docstring):
     # Look for markdown table rows with the format: | `property` | type | required | description |
     table_matches = re.findall(r"\|\s*`([^`]+)`\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|", docstring)
 
-    if table_matches:
-        # Parse markdown table format
-        for match in table_matches:
-            name, prop_type, required, prop_desc = match
-            properties.append(
-                {
-                    "name": name.strip(),
-                    "type": prop_type.strip(),
-                    "required": required.strip(),
-                    "description": prop_desc.strip(),
-                }
-            )
-    else:
-        # Fall back to old format parsing for backwards compatibility
-        props_section_match = re.search(r"(?:Properties|Required properties):\s*\n\n(.+)", docstring, re.DOTALL)
-        if not props_section_match:
-            props_section_match = re.search(r"(?:Properties|Required properties):\s*(.+)", docstring, re.DOTALL)
-
-        if props_section_match:
-            props_text = props_section_match.group(1).strip()
-            # Split properties based on the `prop_name` format
-            prop_blocks = re.split(r"\n\s*\n", props_text)
-            for block in prop_blocks:
-                if not block.strip():
-                    continue
-
-                # Regex to capture property name, type, requirement, and description
-                match = re.match(r"`(.+?)`\s+\[(.+?)\]\s+\[(.+?)\]\n(.+)", block.strip(), re.DOTALL)
-                if match:
-                    name, prop_type, required, prop_desc = match.groups()
-                    # Clean up the description
-                    prop_desc = " ".join(line.strip() for line in prop_desc.strip().split("\n"))
-                    properties.append(
-                        {
-                            "name": name,
-                            "type": prop_type,
-                            "required": required,
-                            "description": prop_desc,
-                        }
-                    )
+    # Parse markdown table format
+    for match in table_matches:
+        name, prop_type, required, prop_desc = match
+        properties.append(
+            {
+                "name": name.strip(),
+                "type": prop_type.strip(),
+                "required": required.strip(),
+                "description": prop_desc.strip(),
+            }
+        )
 
     return {
         "description": description,
