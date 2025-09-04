@@ -91,11 +91,13 @@ playlist. Input playlists are generally referred to by their URI, or
 unique identifier, which can be found by right-clicking on a playlist
 and going to `Share > Copy Spotify URI`.
 
-Full documentation can be found on the [Power Playlists page on Read the
-Docs](https://power-playlists.readthedocs.io).
+Full documentation can be found on the [Power Playlists page on GitHub
+Pages](https://xkrogen.github.io/power-playlists). A full reference of
+all supported node types is also available in the [Node
+Reference](https://xkrogen.github.io/power-playlists/powerplaylists.html#node-reference).
 
-TODO get the Python docs set up, link to all nodes TODO show a more
-complex example involving template TODO describe daemonization
+TODO show a more complex example involving template TODO describe
+daemonization
 
 ## Development
 
