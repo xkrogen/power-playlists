@@ -30,7 +30,7 @@ def parse_docstring(docstring):
     description = description.strip()
 
 
-    type_match = re.search(r"Type: ``(.+?)``", docstring, re.DOTALL)
+    type_match = re.search(r"Type: `(.+?)`", docstring, re.DOTALL)
     node_type = type_match.group(1) if type_match else None
 
     properties = []
@@ -40,14 +40,14 @@ def parse_docstring(docstring):
 
     if props_section_match:
         props_text = props_section_match.group(1).strip()
-        # Split properties based on the ``prop_name`` format
+        # Split properties based on the `prop_name` format
         prop_blocks = re.split(r'\n\s*\n', props_text)
         for block in prop_blocks:
             if not block.strip():
                 continue
 
             # Regex to capture property name, type, requirement, and description
-            match = re.match(r"``(.+?)``\s+\[(.+?)\]\s+\[(.+?)\]\n(.+)", block.strip(), re.DOTALL)
+            match = re.match(r"`(.+?)`\s+\[(.+?)\]\s+\[(.+?)\]\n(.+)", block.strip(), re.DOTALL)
             if match:
                 name, prop_type, required, prop_desc = match.groups()
                 # Clean up the description
@@ -75,14 +75,7 @@ def get_docs_for_class(cls):
     # Get the docstring for the current class
     docstring = inspect.getdoc(cls)
     parsed_docs = parse_docstring(docstring) or {"properties": [], "description": "", "type": None}
-
-    # For TimeBasedFilterNode children, we need to manually inherit the parent's properties
-    if issubclass(cls, TimeBasedFilterNode) and cls is not TimeBasedFilterNode:
-        parent_docstring = inspect.getdoc(TimeBasedFilterNode)
-        parent_docs = parse_docstring(parent_docstring)
-        if parent_docs and parent_docs["properties"]:
-            # Prepend parent properties to child properties
-            parsed_docs["properties"] = parent_docs["properties"] + parsed_docs["properties"]
+    parsed_docs["class_name"] = cls.__name__
 
     return parsed_docs
 
@@ -113,6 +106,8 @@ def main():
     excluded_nodes = ["template", None]
     node_classes = [n for n in node_classes if n.ntype() not in excluded_nodes]
 
+    time_based_filter_node_docs = get_docs_for_class(TimeBasedFilterNode)
+
 
     node_docs = []
     for node_class in node_classes:
@@ -123,22 +118,55 @@ def main():
     # Sort nodes by type
     node_docs.sort(key=lambda x: x["type"])
 
+    class_to_type_map = {doc["class_name"]: doc["type"] for doc in node_docs}
+    class_to_type_map[TimeBasedFilterNode.__name__] = "time_based_filter" # Special case for the abstract node
+
     with open(output_file, "w") as f:
         f.write("# Node Reference\n\n")
         f.write("This page provides a reference for all supported node types in `power-playlists`.\n\n")
 
         for doc in node_docs:
+            description = doc["description"]
+            for class_name, node_type in class_to_type_map.items():
+                description = description.replace(f'`{class_name}`', f'`{node_type}`')
+
             f.write(f"## `{doc['type']}`\n\n")
-            f.write(f"{doc['description']}\n\n")
+            f.write(f"{description}\n\n")
 
             if doc["properties"]:
                 f.write("| Property | Type | Required | Description |\n")
                 f.write("|----------|------|----------|-------------|\n")
                 for prop in doc["properties"]:
+                    prop_description = prop['description']
+                    for class_name, node_type in class_to_type_map.items():
+                        prop_description = prop_description.replace(f'`{class_name}`', f'`{node_type}`')
+
                     # Escape pipe characters in the description
-                    description = prop['description'].replace('|', '\|')
-                    f.write(f"| `{prop['name']}` | {prop['type']} | {prop['required']} | {description} |\n")
+                    prop_description = prop_description.replace('|', '\\|')
+                    f.write(f"| `{prop['name']}` | {prop['type']} | {prop['required']} | {prop_description} |\n")
                 f.write("\n")
+
+        # Add the special section for TimeBasedFilterNode
+        f.write("# Time Based Filtering Nodes\n\n")
+
+        description = time_based_filter_node_docs["description"]
+        for class_name, node_type in class_to_type_map.items():
+            description = description.replace(f'`{class_name}`', f'`{node_type}`')
+
+        f.write(f"{description}\n\n")
+
+        if time_based_filter_node_docs["properties"]:
+            f.write("| Property | Type | Required | Description |\n")
+            f.write("|----------|------|----------|-------------|\n")
+            for prop in time_based_filter_node_docs["properties"]:
+                prop_description = prop['description']
+                for class_name, node_type in class_to_type_map.items():
+                    prop_description = prop_description.replace(f'`{class_name}`', f'`{node_type}`')
+
+                # Escape pipe characters in the description
+                prop_description = prop_description.replace('|', '\\|')
+                f.write(f"| `{prop['name']}` | {prop['type']} | {prop['required']} | {prop_description} |\n")
+            f.write("\n")
 
     print(f"Successfully generated node reference at {output_file}")
 
