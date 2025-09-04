@@ -106,9 +106,6 @@ def main():
     excluded_nodes = ["template", None]
     node_classes = [n for n in node_classes if n.ntype() not in excluded_nodes]
 
-    time_based_filter_node_docs = get_docs_for_class(TimeBasedFilterNode)
-
-
     node_docs = []
     for node_class in node_classes:
         docs = get_docs_for_class(node_class)
