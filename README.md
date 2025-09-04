@@ -44,7 +44,7 @@ purpose of defining your playlists, you only need to understand
 [sequences](https://camel.readthedocs.io/en/latest/yamlref.html#sequences)
 and
 [mappings](https://camel.readthedocs.io/en/latest/yamlref.html#mappings).
-Really, just looking at some examples will probably be sufficient \--
+Really, just looking at some examples will probably be sufficient --
 YAML is designed to be intuitive.
 
 By default, `power-playlists` will search for YAML config files within
@@ -61,13 +61,13 @@ which have been liked/saved), or an `output` node (saves the tracks to a
 playlist).
 
 Each YAML file should contain all of the playlist definitions for a
-single user. When you first run `power-playlists`, you\'ll be prompted
+single user. When you first run `power-playlists`, you'll be prompted
 to log in to your Spotify account. A token allowing `power-playlists` to
 access your account will be stored based on the name of the YAML file,
-so you\'ll have to log in once for each file, and if the name of the
+so you'll have to log in once for each file, and if the name of the
 file changes, you will have to re-login.
 
-Let\'s look at a simple example:
+Let's look at a simple example:
 
 ``` yaml
 PlaylistA:
@@ -119,8 +119,8 @@ The project is configured with `pyproject.toml` and includes a lockfile
 
 Remember [Smart Playlists from
 iTunes](https://support.apple.com/guide/itunes/create-delete-and-use-smart-playlists-itns3001/windows)?
-They\'re pretty much the *only* thing I miss about iTunes, otherwise
-being grateful to be fully devoted to the Church of Spotify. I\'ve found
+They're pretty much the *only* thing I miss about iTunes, otherwise
+being grateful to be fully devoted to the Church of Spotify. I've found
 two projects along the direction of enhancing Spotify with such
 functionality:
 
@@ -151,7 +151,7 @@ allowed for templating.
 
 Unfortunately, I know nothing about programming for the web, so instead
 of a shiny UI, all you get is a command-line tool. But this also means
-it\'s fairly easy to get started on your own, and you don\'t run the
+it's fairly easy to get started on your own, and you don't run the
 risk of setting up a bunch of custom playlist definitions and building
-your music library around them \-- only to find out that one day, the
-application breaks and doesn\'t get fixed, or has to shut down.
+your music library around them -- only to find out that one day, the
+application breaks and doesn't get fixed, or has to shut down.

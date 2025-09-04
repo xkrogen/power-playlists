@@ -119,7 +119,7 @@ def main():
     class_to_type_map[TimeBasedFilterNode.__name__] = "time_based_filter"  # Special case for the abstract node
 
     with open(output_file, "w") as f:
-        f.write("# Node Reference\n\n")
+        f.write("## Node Reference\n\n")
         f.write("This page provides a reference for all supported node types in `power-playlists`.\n\n")
 
         for doc in node_docs:
@@ -127,7 +127,7 @@ def main():
             for class_name, node_type in class_to_type_map.items():
                 description = description.replace(f"`{class_name}`", f"`{node_type}`")
 
-            f.write(f"## `{doc['type']}`\n\n")
+            f.write(f"### `{doc['type']}`\n\n")
             f.write(f"{description}\n\n")
 
             if doc["properties"]:
@@ -144,7 +144,7 @@ def main():
                 f.write("\n")
 
         # Add the special section for TimeBasedFilterNode
-        f.write("# Time Based Filtering Nodes\n\n")
+        f.write("### Time Based Filtering Nodes\n\n")
 
         description = time_based_filter_node_docs["description"]
         for class_name, node_type in class_to_type_map.items():
