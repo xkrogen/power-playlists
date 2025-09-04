@@ -26,9 +26,8 @@ def parse_docstring(docstring):
     # Extract the main description, which is everything before "Type:" or "Properties:"
     # or the end of the string.
     description_end = re.search(r"\n\s*(Type:|Properties:|Required properties:)", docstring)
-    description = docstring[:description_end.start()] if description_end else docstring
+    description = docstring[: description_end.start()] if description_end else docstring
     description = description.strip()
-
 
     type_match = re.search(r"Type: `(.+?)`", docstring, re.DOTALL)
     node_type = type_match.group(1) if type_match else None
@@ -41,7 +40,7 @@ def parse_docstring(docstring):
     if props_section_match:
         props_text = props_section_match.group(1).strip()
         # Split properties based on the `prop_name` format
-        prop_blocks = re.split(r'\n\s*\n', props_text)
+        prop_blocks = re.split(r"\n\s*\n", props_text)
         for block in prop_blocks:
             if not block.strip():
                 continue
@@ -51,19 +50,22 @@ def parse_docstring(docstring):
             if match:
                 name, prop_type, required, prop_desc = match.groups()
                 # Clean up the description
-                prop_desc = ' '.join(line.strip() for line in prop_desc.strip().split('\n'))
-                properties.append({
-                    "name": name,
-                    "type": prop_type,
-                    "required": required,
-                    "description": prop_desc,
-                })
+                prop_desc = " ".join(line.strip() for line in prop_desc.strip().split("\n"))
+                properties.append(
+                    {
+                        "name": name,
+                        "type": prop_type,
+                        "required": required,
+                        "description": prop_desc,
+                    }
+                )
 
     return {
         "description": description,
         "type": node_type,
         "properties": properties,
     }
+
 
 def get_docs_for_class(cls):
     """
@@ -94,11 +96,7 @@ def main():
     node_classes = [
         cls
         for cls in get_all_subclasses(Node)
-        if (
-            not inspect.isabstract(cls)
-            and hasattr(cls, "ntype")
-            and cls.ntype() is not None
-        )
+        if (not inspect.isabstract(cls) and hasattr(cls, "ntype") and cls.ntype() is not None)
     ]
 
     # Exclude template nodes that are not meant to be used directly
@@ -107,7 +105,6 @@ def main():
     node_classes = [n for n in node_classes if n.ntype() not in excluded_nodes]
 
     time_based_filter_node_docs = get_docs_for_class(TimeBasedFilterNode)
-
 
     node_docs = []
     for node_class in node_classes:
@@ -119,7 +116,7 @@ def main():
     node_docs.sort(key=lambda x: x["type"])
 
     class_to_type_map = {doc["class_name"]: doc["type"] for doc in node_docs}
-    class_to_type_map[TimeBasedFilterNode.__name__] = "time_based_filter" # Special case for the abstract node
+    class_to_type_map[TimeBasedFilterNode.__name__] = "time_based_filter"  # Special case for the abstract node
 
     with open(output_file, "w") as f:
         f.write("# Node Reference\n\n")
@@ -128,7 +125,7 @@ def main():
         for doc in node_docs:
             description = doc["description"]
             for class_name, node_type in class_to_type_map.items():
-                description = description.replace(f'`{class_name}`', f'`{node_type}`')
+                description = description.replace(f"`{class_name}`", f"`{node_type}`")
 
             f.write(f"## `{doc['type']}`\n\n")
             f.write(f"{description}\n\n")
@@ -137,12 +134,12 @@ def main():
                 f.write("| Property | Type | Required | Description |\n")
                 f.write("|----------|------|----------|-------------|\n")
                 for prop in doc["properties"]:
-                    prop_description = prop['description']
+                    prop_description = prop["description"]
                     for class_name, node_type in class_to_type_map.items():
-                        prop_description = prop_description.replace(f'`{class_name}`', f'`{node_type}`')
+                        prop_description = prop_description.replace(f"`{class_name}`", f"`{node_type}`")
 
                     # Escape pipe characters in the description
-                    prop_description = prop_description.replace('|', '\\|')
+                    prop_description = prop_description.replace("|", "\\|")
                     f.write(f"| `{prop['name']}` | {prop['type']} | {prop['required']} | {prop_description} |\n")
                 f.write("\n")
 
@@ -151,7 +148,7 @@ def main():
 
         description = time_based_filter_node_docs["description"]
         for class_name, node_type in class_to_type_map.items():
-            description = description.replace(f'`{class_name}`', f'`{node_type}`')
+            description = description.replace(f"`{class_name}`", f"`{node_type}`")
 
         f.write(f"{description}\n\n")
 
@@ -159,12 +156,12 @@ def main():
             f.write("| Property | Type | Required | Description |\n")
             f.write("|----------|------|----------|-------------|\n")
             for prop in time_based_filter_node_docs["properties"]:
-                prop_description = prop['description']
+                prop_description = prop["description"]
                 for class_name, node_type in class_to_type_map.items():
-                    prop_description = prop_description.replace(f'`{class_name}`', f'`{node_type}`')
+                    prop_description = prop_description.replace(f"`{class_name}`", f"`{node_type}`")
 
                 # Escape pipe characters in the description
-                prop_description = prop_description.replace('|', '\\|')
+                prop_description = prop_description.replace("|", "\\|")
                 f.write(f"| `{prop['name']}` | {prop['type']} | {prop['required']} | {prop_description} |\n")
             f.write("\n")
 
