@@ -119,7 +119,7 @@ def main():
     node_docs.sort(key=lambda x: x["type"])
 
     class_to_type_map = {doc["class_name"]: doc["type"] for doc in node_docs}
-    class_to_type_map[TimeBasedFilterNode.__name__] = "time_based_filter" # Special case for the abstract node
+    class_to_type_map[TimeBasedFilterNode.__name__] = "time_based_filter"  # Special case for the abstract node
 
     with open(output_file, "w") as f:
         f.write("# Node Reference\n\n")
