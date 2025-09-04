@@ -29,7 +29,6 @@ def parse_docstring(docstring):
     description = docstring[:description_end.start()] if description_end else docstring
     description = description.strip()
 
-
     type_match = re.search(r"Type: `(.+?)`", docstring, re.DOTALL)
     node_type = type_match.group(1) if type_match else None
 
