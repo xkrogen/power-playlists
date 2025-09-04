@@ -129,13 +129,10 @@ class SpotifyClient:
         # For pagination of removals, start at the end and work backwards to avoid changing the indices
         # of songs specified in subsequent calls
         if len(removal_tuple_list) == 0:
-            # If no items to remove, return current snapshot_id or fetch it
-            if snapshot_id is not None:
-                return snapshot_id
-            # Need to get current snapshot_id from playlist
-            self._increment_call_count("playlist")
-            playlist = self.spotipy.playlist(playlist_uri)
-            return playlist["snapshot_id"]
+            return self.get_snapshot_id(
+                "remove_specific_occurrences",
+                self.spotipy.playlist_remove_specific_occurrences_of_items(playlist_uri, [], snapshot_id=snapshot_id),
+            )
 
         while tracks_removed < len(removal_tuple_list):
             start_idx = -1 * (Constants.PAGINATION_LIMIT + tracks_removed)
