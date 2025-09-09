@@ -112,7 +112,92 @@ To try any of these examples, copy them to your `~/.power-playlists/userconf/` d
 
 ### Running in Daemon Mode
 
-Power Playlists can also run continuously in daemon mode to automatically update your playlists on a schedule. See the [documentation](https://xkrogen.github.io/power-playlists) for more details on daemon mode configuration.
+Power Playlists can run continuously in daemon mode to automatically update your playlists on a schedule. This allows you to set up your playlist definitions once and have them automatically maintained without manual intervention.
+
+#### Unix/Linux Daemon Commands
+
+For general Unix and Linux systems, Power Playlists provides self-managed daemon functionality:
+
+```bash
+# Start the daemon in the background
+power-playlists daemon start
+
+# Check if the daemon is running
+power-playlists daemon show
+
+# Stop the daemon
+power-playlists daemon stop
+
+# Restart the daemon (stops existing and starts new)
+power-playlists daemon restart
+```
+
+The daemon will:
+- Run playlist updates every 12 hours by default (configurable)
+- Log all activity to `~/.power-playlists/app.log` with log rotation
+- Use a PID file at `~/.power-playlists/daemon.pid` for process management
+- Continue running across system reboots if started from a startup script
+
+#### macOS launchd Integration (Recommended for macOS)
+
+On macOS systems, using `launchd` is preferred over the self-managed daemon as it provides better system integration:
+
+```bash
+# Install the daemon to run automatically via launchd
+power-playlists launchd install
+
+# Uninstall the daemon from launchd
+power-playlists launchd uninstall
+```
+
+The launchd integration:
+- Creates a plist file at `~/Library/LaunchAgents/com.github.xkrogen.power-playlists.plist`
+- Automatically starts the daemon when you log in
+- Manages the process lifecycle through the system
+- Uses the same default 12-hour update interval
+
+#### Configuration Options
+
+You can customize daemon behavior by creating a configuration file at `~/.power-playlists/conf.yaml`:
+
+```yaml
+# Update interval in minutes (default: 720 = 12 hours)
+daemon_sleep_period_minutes: 360  # 6 hours
+
+# Log file location and level
+log_file_path: "~/.power-playlists/app.log"
+log_file_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+
+# PID file location (Unix daemon only)
+daemon_pidfile: "~/.power-playlists/daemon.pid"
+```
+
+#### Monitoring and Troubleshooting
+
+**Check daemon status:**
+```bash
+# For Unix daemon
+power-playlists daemon show
+
+# For macOS launchd
+launchctl list | grep power-playlists
+```
+
+**View logs:**
+```bash
+# Follow live logs
+tail -f ~/.power-playlists/app.log
+
+# View recent log entries
+tail -50 ~/.power-playlists/app.log
+```
+
+**Common issues:**
+- If daemon fails to start, check that `~/.power-playlists/userconf/` contains valid configuration files
+- Ensure Spotify authentication tokens are valid (you may need to re-run manually first)
+- On macOS, if launchd installation fails, verify you have write permissions to `~/Library/LaunchAgents/`
+
+The daemon will process all YAML configuration files found in your `~/.power-playlists/userconf/` directory during each update cycle.
 
 ## Development
 
