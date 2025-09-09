@@ -1,0 +1,49 @@
+# Basic filtering example demonstrating time-based and liked track filtering
+# This configuration shows how to filter tracks by when they were added and liked status
+
+# Input: A source playlist
+MySourcePlaylist:
+  type: 'playlist'
+  uri: 'spotify:playlist:xxxxxxxxxxxxxxxxx'
+
+# Filter to only tracks added in the last 30 days
+RecentlyAdded:
+  type: 'filter_time_added'
+  input: 'MySourcePlaylist'
+  days_ago: 30
+
+# Filter to only liked/saved tracks
+LikedTracks:
+  type: 'is_liked'
+  input: 'MySourcePlaylist'
+
+# Combine recent and liked tracks, then sort by when they were added
+RecentAndLikedCombined:
+  type: 'combiner'
+  inputs:
+    - 'RecentlyAdded'
+    - 'LikedTracks'
+  combine_type: 'interleave'
+
+# Sort the combined tracks by add date (most recent first)
+SortedByAddDate:
+  type: 'sort'
+  input: 'RecentAndLikedCombined'
+  sort_key: 'time_added'
+  sort_desc: true
+
+# Remove any duplicate tracks
+Deduplicated:
+  type: 'dedup'
+  input: 'SortedByAddDate'
+
+# Limit to 100 tracks and output to a new playlist
+FilteredOutput:
+  type: 'limit'
+  input: 'Deduplicated'
+  max_size: 100
+
+FinalOutput:
+  type: 'output'
+  input: 'FilteredOutput'
+  playlist_name: 'Recent and Liked Tracks'

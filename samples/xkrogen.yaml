@@ -11,4 +11,5 @@ PlaylistABCombined:
     - PlaylistB
 PlaylistABCombinedOutput:
   type: 'output'
+  input: 'PlaylistABCombined'
   playlist_name: 'Playlist A + B Combined'

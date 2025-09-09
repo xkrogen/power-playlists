@@ -1,0 +1,115 @@
+# Complex workflow example combining multiple Power Playlists features
+# This demonstrates a comprehensive music organization system
+
+# Input sources
+ChillPlaylist:
+  type: 'playlist'
+  uri: 'spotify:playlist:xxxxxxxxxxxxxxxxx'
+
+EnergeticPlaylist:
+  type: 'playlist' 
+  uri: 'spotify:playlist:yyyyyyyyyyyyyyyyy'
+
+ClassicRockPlaylist:
+  type: 'playlist'
+  uri: 'spotify:playlist:zzzzzzzzzzzzzzzzz'
+
+# Template for processing mood-based playlists
+MoodPlaylistProcessor:
+  type: 'dynamic_template'
+  template:
+    # Sort source playlist by add date
+    '{mood} Sorted':
+      type: 'sort'
+      input: '{source_playlist}'
+      sort_key: 'time_added'
+      sort_desc: true
+    
+    # Get recently added tracks (last 90 days)
+    '{mood} Recent':
+      type: 'filter_time_added'
+      input: '{mood} Sorted'
+      days_ago: 90
+    
+    # Get liked tracks from the same source
+    '{mood} Liked':
+      type: 'is_liked'
+      input: '{mood} Sorted'
+    
+    # Combine recent and liked, favoring recent tracks
+    '{mood} Combined':
+      type: 'combiner'
+      inputs:
+        - '{mood} Recent'
+        - '{mood} Liked'
+      combine_type: 'interleave'
+    
+    # Remove duplicates
+    '{mood} Deduped':
+      type: 'dedup'
+      input: '{mood} Combined'
+    
+    # Limit to manageable size
+    '{mood} Limited':
+      type: 'limit'
+      input: '{mood} Deduped'
+      max_size: '{max_tracks}'
+    
+    # Output the processed playlist
+    '{mood} Output':
+      type: 'output'
+      input: '{mood} Limited'
+      playlist_name: '{mood} - Best Recent & Liked'
+  
+  instances:
+    - mood: 'Chill'
+      source_playlist: 'ChillPlaylist'
+      max_tracks: 75
+    - mood: 'Energetic'
+      source_playlist: 'EnergeticPlaylist'
+      max_tracks: 100
+    - mood: 'Classic Rock'
+      source_playlist: 'ClassicRockPlaylist'
+      max_tracks: 50
+
+# Create a master mix of all processed playlists
+MasterMix:
+  type: 'combine_sort_dedup_output'
+  input_nodes:
+    - 'Chill Output'
+    - 'Energetic Output'
+    - 'Classic Rock Output'
+  sort_key: 'time_added'
+  sort_desc: true
+  output_playlist_name: 'Master Mix - All Moods'
+
+# Create a liked-only super playlist from your full library
+FullLibrary:
+  type: 'all_tracks'
+
+AllLikedTracks:
+  type: 'is_liked'
+  input: 'FullLibrary'
+
+# Filter liked tracks to recent additions
+RecentLikedTracks:
+  type: 'filter_time_added'
+  input: 'AllLikedTracks'
+  days_ago: 180
+
+# Sort and limit
+RecentLikedSorted:
+  type: 'sort'
+  input: 'RecentLikedTracks'
+  sort_key: 'time_added'
+  sort_desc: true
+
+RecentLikedLimited:
+  type: 'limit'
+  input: 'RecentLikedSorted'
+  max_size: 200
+
+RecentLikedOutput:
+  type: 'output'
+  input: 'RecentLikedLimited'
+  playlist_name: 'Recent Favorites (6 months)'

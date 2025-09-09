@@ -1,0 +1,54 @@
+# Dynamic template example demonstrating genre-based playlist organization
+# This shows how to use templates to process multiple playlists with the same logic
+
+GenrePlaylistTemplate:
+  type: 'dynamic_template'
+  template:
+    # Define the template structure with placeholders
+    '{genre} Source':
+      type: 'playlist'
+      uri: '{source_uri}'
+    
+    # Sort tracks by when they were added (newest first)
+    '{genre} Sorted':
+      type: 'sort'
+      input: '{genre} Source'
+      sort_key: 'time_added'
+      sort_desc: true
+    
+    # Filter to only liked tracks
+    '{genre} Liked':
+      type: 'is_liked'
+      input: '{genre} Sorted'
+    
+    # Limit to last 50 tracks
+    '{genre} Recent':
+      type: 'limit'
+      input: '{genre} Sorted'
+      max_size: 50
+    
+    # Output the processed playlist
+    '{genre} Output':
+      type: 'output'
+      input: '{genre} Recent'
+      playlist_name: '{genre} - Recent Favorites'
+  
+  # Apply the template to multiple genres
+  instances:
+    - genre: 'Electronic'
+      source_uri: 'spotify:playlist:xxxxxxxxxxxxxxxxx'
+    - genre: 'Rock'
+      source_uri: 'spotify:playlist:yyyyyyyyyyyyyyyyy'
+    - genre: 'Hip Hop'
+      source_uri: 'spotify:playlist:zzzzzzzzzzzzzzzzz'
+
+# Combine all genre outputs into one master playlist
+AllGenresCombined:
+  type: 'combine_sort_dedup_output'
+  input_nodes:
+    - 'Electronic Output'
+    - 'Rock Output'
+    - 'Hip Hop Output'
+  sort_key: 'time_added'
+  sort_desc: true
+  output_playlist_name: 'All Genres - Recent Mix'
