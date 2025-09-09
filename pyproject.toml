@@ -101,6 +101,7 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["T20"]  # Allow print statements in tests
+"src/**/_version.py" = ["ALL"]  # Ignore all linting in auto-generated version files
 
 [tool.mypy]
 python_version = "3.12"
