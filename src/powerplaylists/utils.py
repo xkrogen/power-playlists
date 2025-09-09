@@ -107,7 +107,7 @@ class AppConfig:
             pathlib.Path(self.user_config_dir),
             pathlib.Path(self.cache_dir),
             pathlib.Path(self.log_file_path).parent,
-             pathlib.Path(self.daemon_pidfile).parent,
+            pathlib.Path(self.daemon_pidfile).parent,
         ]:
             path.mkdir(parents=True, exist_ok=True)
 
