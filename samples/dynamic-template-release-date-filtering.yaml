@@ -1,0 +1,53 @@
+# Release date filtering example demonstrating time-period based music organization
+# This shows how to organize your music library by release decades
+
+# Start with your full music library
+FullLibrary:
+  type: 'all_tracks'
+
+# Filter tracks by release decades using dynamic templates
+DecadePlaylistTemplate:
+  type: 'dynamic_template'
+  template:
+    # Filter to tracks released after the start year
+    '{decade} Start Filter':
+      type: 'filter_release_date'
+      input: 'FullLibrary'
+      cutoff_time: '{start_year}'
+    
+    # Filter to tracks released before the end year
+    '{decade} End Filter':
+      type: 'filter_release_date'
+      input: '{decade} Start Filter'
+      cutoff_time: '{end_year}'
+      keep_before: true
+    
+    # Sort by release date
+    '{decade} Sorted':
+      type: 'sort'
+      input: '{decade} End Filter'
+      sort_key: 'release_date'
+      sort_desc: false
+    
+    # Output the decade playlist
+    '{decade} Output':
+      type: 'output'
+      input: '{decade} Sorted'
+      playlist_name: '{decade}s Music'
+  
+  instances:
+    - decade: '1980s'
+      start_year: '1980'
+      end_year: '1990'
+    - decade: '1990s'
+      start_year: '1990'
+      end_year: '2000'
+    - decade: '2000s'
+      start_year: '2000'
+      end_year: '2010'
+    - decade: '2010s'
+      start_year: '2010'
+      end_year: '2020'
+    - decade: '2020s'
+      start_year: '2020'
+      end_year: '2030'

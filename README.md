@@ -83,6 +83,7 @@ PlaylistABCombined:
     - PlaylistB
 PlaylistABCombinedOutput:
   type: output
+  input: PlaylistABCombined
   playlist_name: 'Playlist A + B Combined'
 ```
 
@@ -96,8 +97,22 @@ Pages](https://xkrogen.github.io/power-playlists). A full reference of
 all supported node types is also available in the [Node
 Reference](https://xkrogen.github.io/power-playlists/powerplaylists.html#node-reference).
 
-TODO show a more complex example involving template TODO describe
-daemonization
+## Examples
+
+Power Playlists supports many advanced features through its flexible node system. Several example configurations are available in the [`samples/`](samples/) directory demonstrating different capabilities, from basic filtering to complex multi-stage processing with dynamic templates.
+
+### Sample Files
+
+- [`samples/basic-combiner.yaml`](samples/basic-combiner.yaml) - Basic playlist combination
+- [`samples/basic-filtering.yaml`](samples/basic-filtering.yaml) - Time-based and liked track filtering with combining, sorting, and deduplication
+- [`samples/dynamic-template-release-date-filtering.yaml`](samples/dynamic-template-release-date-filtering.yaml) - Music organization by release decades using dynamic templates
+- [`samples/complex-workflow.yaml`](samples/complex-workflow.yaml) - Comprehensive multi-stage processing with mood-based workflows and master playlist creation
+
+To try any of these examples, copy them to your `~/.power-playlists/userconf/` directory and replace the placeholder URIs with your actual Spotify playlist URIs.
+
+### Running in Daemon Mode
+
+Power Playlists can also run continuously in daemon mode to automatically update your playlists on a schedule. See the [documentation](https://xkrogen.github.io/power-playlists) for more details on daemon mode configuration.
 
 ## Development
 
