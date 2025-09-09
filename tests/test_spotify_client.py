@@ -2,7 +2,7 @@ import os
 
 from test_mocks import MockClient
 
-from powerplaylists.spotify_client import PlaylistCache, SpotifyClient, utils
+from power_playlists.spotify_client import PlaylistCache, SpotifyClient, utils
 
 
 class TestSpotifyClient:

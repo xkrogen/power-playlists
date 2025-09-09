@@ -17,7 +17,7 @@ from daemon import DaemonContext, pidfile
 from lockfile import pidlockfile
 from spotipy.oauth2 import SpotifyPKCE
 
-from powerplaylists.spotify_client import SpotifyClient
+from power_playlists.spotify_client import SpotifyClient
 
 from . import nodes, utils
 from .nodes import OutputNode
