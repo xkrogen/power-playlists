@@ -36,35 +36,18 @@ DecadePlaylistTemplate:
       playlist_name: '{decade}s Music'
   
   instances:
-    - decade: '1980'
+    - decade: '1980s'
       start_year: '1980'
       end_year: '1990'
-    - decade: '1990'
+    - decade: '1990s'
       start_year: '1990'
       end_year: '2000'
-    - decade: '2000'
+    - decade: '2000s'
       start_year: '2000'
       end_year: '2010'
-    - decade: '2010'
+    - decade: '2010s'
       start_year: '2010'
       end_year: '2020'
-    - decade: '2020'
+    - decade: '2020s'
       start_year: '2020'
       end_year: '2030'
-
-# Create a playlist of newer releases (last 2 years)
-RecentReleases:
-  type: 'filter_release_date'
-  input: 'FullLibrary'
-  cutoff_time: '2022'
-
-RecentReleasesSorted:
-  type: 'sort'
-  input: 'RecentReleases'
-  sort_key: 'release_date'
-  sort_desc: true
-
-RecentReleasesOutput:
-  type: 'output'
-  input: 'RecentReleasesSorted'
-  playlist_name: 'Recent Releases (2022+)'
