@@ -55,10 +55,10 @@ dev = [
 power-playlists = "power_playlists.main:cli"
 
 [project.urls]
-Homepage = "https://github.com/xkrogen/power-playlists"
+Homepage = "https://xkrogen.github.io/power-playlists/"
 Repository = "https://github.com/xkrogen/power-playlists"
 "Bug Tracker" = "https://github.com/xkrogen/power-playlists/issues"
-"Documentation" = "https://github.com/xkrogen/power-playlists#readme"
+"Documentation" = "https://xkrogen.github.io/power-playlists/"
 
 [tool.hatch.version]
 source = "vcs"
