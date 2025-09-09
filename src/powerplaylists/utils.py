@@ -106,11 +106,10 @@ class AppConfig:
             Constants.APP_HOMEDIR,
             self.user_config_dir,
             self.cache_dir,
+            pathlib.Path(self.log_file_path).parent,
+            pathlib.Path(self.daemon_pidfile).parent,
         ]:
             pathlib.Path(path).mkdir(parents=True, exist_ok=True)
-
-        pathlib.Path(self.log_file_path).parent.mkdir(parents=True, exist_ok=True)
-        pathlib.Path(self.daemon_pidfile).parent.mkdir(parents=True, exist_ok=True)
 
     def __load_from_file(self, path: str | os.PathLike[str]) -> None:
         with open(path) as conf_file:
