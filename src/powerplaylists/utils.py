@@ -102,8 +102,15 @@ class AppConfig:
         elif os.path.isfile(Constants.APP_CONFIG_FILE_DEFAULT):
             self.__load_from_file(Constants.APP_CONFIG_FILE_DEFAULT)
 
-        # Ensure required directories exist
-        self.__ensure_directories_exist()
+        for path in [
+            Constants.APP_HOMEDIR,
+            self.user_config_dir,
+            self.cache_dir,
+        ]:
+            pathlib.Path(path).mkdir(parents=True, exist_ok=True)
+
+        pathlib.Path(self.log_file_path).parent.mkdir(parents=True, exist_ok=True)
+        pathlib.Path(self.daemon_pidfile).parent.mkdir(parents=True, exist_ok=True)
 
     def __load_from_file(self, path: str | os.PathLike[str]) -> None:
         with open(path) as conf_file:
@@ -123,23 +130,6 @@ class AppConfig:
         )
         self.daemon_pidfile = get_or_default("daemon_pidfile", self.daemon_pidfile)
         self.verify_mode = VerifyMode[get_or_default("verify_mode", self.verify_mode.name).upper()]
-
-    def __ensure_directories_exist(self) -> None:
-        """Ensure all required directories exist, creating them if necessary."""
-        # Create the main app directory first (e.g., ~/.power-playlists)
-        pathlib.Path(Constants.APP_HOMEDIR).mkdir(parents=True, exist_ok=True)
-
-        # Create the user config directory (e.g., ~/.power-playlists/userconf)
-        pathlib.Path(self.user_config_dir).mkdir(parents=True, exist_ok=True)
-
-        # Create the cache directory (e.g., ~/.power-playlists/cache)
-        pathlib.Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
-
-        # Ensure the parent directory for the log file exists
-        pathlib.Path(self.log_file_path).parent.mkdir(parents=True, exist_ok=True)
-
-        # Ensure the parent directory for the daemon PID file exists
-        pathlib.Path(self.daemon_pidfile).parent.mkdir(parents=True, exist_ok=True)
 
     def get_user_config_files(self, user_config_file_paths: list[str] | None = None) -> list[str]:
         if user_config_file_paths is not None and len(user_config_file_paths) != 0:
