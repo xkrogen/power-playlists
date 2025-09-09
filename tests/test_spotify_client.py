@@ -12,26 +12,27 @@ class TestSpotifyClient:
         fake_home = tmp_path / "fake_home"
         fake_home.mkdir()
         fake_app_dir = fake_home / ".power-playlists"
-        
+
         # Verify directories don't exist initially
         assert not fake_app_dir.exists()
         assert not (fake_app_dir / "userconf").exists()
         assert not (fake_app_dir / "cache").exists()
-        
+
         # Create AppConfig with custom paths pointing to our test directory
         app_config = utils.AppConfig()
         app_config.user_config_dir = str(fake_app_dir / "userconf")
-        app_config.cache_dir = str(fake_app_dir / "cache")  
+        app_config.cache_dir = str(fake_app_dir / "cache")
         app_config.log_file_path = str(fake_app_dir / "app.log")
         app_config.daemon_pidfile = str(fake_app_dir / "daemon.pid")
-        
+
         # Trigger directory creation by calling the private method
         app_config._AppConfig__ensure_directories_exist()
-        
+
         # Verify all directories were created
         assert (fake_app_dir / "userconf").exists()
         assert (fake_app_dir / "cache").exists()
         assert fake_app_dir.exists()  # Parent directory for log and pidfile should exist
+
     def test_playlist_cache_via_client(self, tmp_path):
         mock_client = MockClient("t1,t2")
         app_config = utils.AppConfig()
