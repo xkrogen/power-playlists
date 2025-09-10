@@ -12,10 +12,28 @@ background process with periodic updates.
 
 ## Quick Start Guide
 
+### Installation
+
+#### Using pip
+
 First, make sure you have a functioning Python 3.9+ installation. Then,
 install `power-playlists` from PyPi:
 
     > pip install power-playlists
+
+#### Using uv
+
+With uv, you can either install the tool, at which point you can invoke it directly:
+
+    > uv tool install power-playlists
+
+Or run it using `uvx`, no installation necessary:
+
+    > uvx power-playlists
+
+Note that if you use `uvx`, you will need to prefix the command with `uvx` each time it is invoked.
+
+### Usage
 
 After this you can simply run `power-playlists` to interact with the
 tool, including seeing the usage info:
