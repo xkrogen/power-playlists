@@ -1,0 +1,171 @@
+version: '3'
+
+vars:
+  UV_PATH: '{{default "$HOME/.local/bin" .UV_PATH}}'
+
+env:
+  PATH: '{{.UV_PATH}}:{{.PATH}}'
+
+tasks:
+  # Setup and installation tasks
+  install-uv:
+    desc: Install UV package manager
+    cmds:
+      - curl -LsSf https://astral.sh/uv/install.sh | sh
+    status:
+      - which uv
+
+  install:
+    desc: Install all project dependencies
+    deps: [install-uv]
+    cmds:
+      - uv sync --all-extras
+    sources:
+      - pyproject.toml
+      - uv.lock
+    generates:
+      - .venv/**/*
+
+  setup:
+    desc: Complete development environment setup
+    deps: [install]
+    cmds:
+      - mkdir -p ~/.power-playlists/userconf
+      - echo "Development environment setup complete!"
+
+  # Testing tasks
+  test:
+    desc: Run all tests
+    deps: [install]
+    cmds:
+      - uv run pytest
+    sources:
+      - src/**/*.py
+      - tests/**/*.py
+
+  test-verbose:
+    desc: Run tests with verbose output
+    deps: [install]
+    cmds:
+      - uv run pytest -v
+
+  # Linting and formatting tasks
+  lint:
+    desc: Run ruff linting checks
+    deps: [install]
+    cmds:
+      - uv run ruff check .
+    sources:
+      - src/**/*.py
+      - tests/**/*.py
+      - pyproject.toml
+
+  lint-fix:
+    desc: Run ruff linting with auto-fix
+    deps: [install]
+    cmds:
+      - uv run ruff check . --fix
+
+  format:
+    desc: Format code with ruff
+    deps: [install]
+    cmds:
+      - uv run ruff format .
+    sources:
+      - src/**/*.py
+      - tests/**/*.py
+
+  format-check:
+    desc: Check code formatting
+    deps: [install]
+    cmds:
+      - uv run ruff format --check .
+    sources:
+      - src/**/*.py
+      - tests/**/*.py
+
+  # Type checking
+  typecheck:
+    desc: Run mypy type checking
+    deps: [install]
+    cmds:
+      - uv run mypy src/
+    sources:
+      - src/**/*.py
+      - pyproject.toml
+
+  # Documentation
+  docs:
+    desc: Generate documentation
+    deps: [install]
+    cmds:
+      - uv run pdoc src/powerplaylists --output-directory docs/
+    sources:
+      - src/**/*.py
+
+  # Application testing
+  app-help:
+    desc: Test CLI help functionality
+    deps: [setup]
+    cmds:
+      - uv run power-playlists --help
+
+  app-run-help:
+    desc: Test run command help
+    deps: [setup]
+    cmds:
+      - uv run power-playlists run --help
+
+  app-test-config:
+    desc: Test application with sample config (expect validation errors)
+    deps: [setup]
+    cmds:
+      - uv run power-playlists run --userconf samples/basic-combiner.yaml || echo "Expected validation errors with sample config"
+
+  # Combined validation tasks
+  check-format:
+    desc: Run all formatting and linting checks
+    deps: [format-check, lint]
+
+  check-all:
+    desc: Run all validation checks (tests, linting, formatting, type checking)
+    deps: [test, lint, format-check, typecheck]
+    cmds:
+      - echo "All checks passed! ✅"
+
+  ci:
+    desc: Run the same checks as CI
+    deps: [check-all]
+
+  # Development workflow tasks
+  fix:
+    desc: Auto-fix linting and formatting issues
+    deps: [install]
+    cmds:
+      - uv run ruff format .
+      - uv run ruff check . --fix
+
+  dev-test:
+    desc: Quick development test cycle
+    deps: [lint, test]
+    cmds:
+      - echo "Quick development cycle complete! ✅"
+
+  # Clean tasks
+  clean:
+    desc: Clean build artifacts and caches
+    cmds:
+      - rm -rf .venv/
+      - rm -rf .pytest_cache/
+      - rm -rf .mypy_cache/
+      - rm -rf .ruff_cache/
+      - rm -rf build/
+      - rm -rf dist/
+      - rm -rf *.egg-info/
+
+  # Display available tasks
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list-all
+    silent: true

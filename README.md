@@ -260,16 +260,67 @@ The daemon will process all YAML configuration files found in your `~/.power-pla
 
 ## Development
 
-Power Playlists uses modern Python tooling with
-[uv](https://github.com/astral-sh/uv) for dependency management and
-builds. To set up a development environment:
+Power Playlists uses modern Python tooling with [uv](https://github.com/astral-sh/uv) for dependency management and [Task](https://taskfile.dev) for development automation.
 
-1.  Install uv: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-2.  Clone the repository
-3.  Run `uv sync --all-extras` to install all dependencies including
-    testing and documentation tools
-4.  Run tests with `uv run python -m pytest tests/`
-5.  Run the tool with `uv run power-playlists --help`
+### Quick Setup
 
-The project is configured with `pyproject.toml` and includes a lockfile
-(`uv.lock`) for reproducible builds.
+1. Install [Task](https://taskfile.dev/#/installation) (task runner) or use the included binary: `./bin/task`
+2. Clone the repository 
+3. Run `task setup` (or `./bin/task setup`) to install all dependencies and set up the development environment
+4. Run `task --list` (or `./bin/task --list`) to see all available development tasks
+
+### Development Tasks
+
+The project uses Task to automate common development workflows:
+
+```bash
+# Complete development setup
+task setup
+
+# Run all validation checks (tests, linting, formatting, type checking)
+task check-all
+
+# Run tests only
+task test
+
+# Format and fix linting issues
+task fix
+
+# Run individual checks
+task lint           # Run linting
+task format-check   # Check formatting  
+task typecheck      # Run type checking
+
+# Test application functionality
+task app-help       # Test CLI help
+task app-run-help   # Test run command help
+
+# Development cycle (quick lint + test)
+task dev-test
+```
+
+### Manual Commands
+
+If you prefer to run commands manually:
+
+```bash
+# Install dependencies
+uv sync --all-extras
+
+# Run tests
+uv run pytest
+
+# Run linting  
+uv run ruff check .
+
+# Format code
+uv run ruff format .
+
+# Type checking
+uv run mypy src/
+
+# Run the application
+uv run power-playlists --help
+```
+
+The project is configured with `pyproject.toml` and includes a lockfile (`uv.lock`) for reproducible builds. The CI pipeline uses the same Task commands as local development to ensure consistency.
