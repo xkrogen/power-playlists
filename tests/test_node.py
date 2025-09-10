@@ -7,13 +7,13 @@ import pytest
 import testutil
 from test_mocks import MockClient
 
-from powerplaylists import nodes, utils
-from powerplaylists.nodes import (
+from power_playlists import nodes, utils
+from power_playlists.nodes import (
     OutputNode,
     PlaylistNode,
 )
-from powerplaylists.spotify_client import PlaylistTrack, SpotifyClient
-from powerplaylists.utils import AppConfig, Constants, VerifyMode
+from power_playlists.spotify_client import PlaylistTrack, SpotifyClient
+from power_playlists.utils import AppConfig, Constants, VerifyMode
 
 
 def get_all_permutations_as_str(input_list):

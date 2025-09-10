@@ -6,7 +6,7 @@ from pathlib import Path
 # Add the src directory to the Python path to allow importing powerplaylists
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from powerplaylists.nodes import Node, TimeBasedFilterNode
+from power_playlists.nodes import Node, TimeBasedFilterNode
 
 
 def get_all_subclasses(cls):

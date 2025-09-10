@@ -151,6 +151,35 @@ wheels = [
 ]
 
 [[package]]
+name = "hatch-vcs"
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "hatchling" },
+    { name = "setuptools-scm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6b/b0/4cc743d38adbee9d57d786fa496ed1daadb17e48589b6da8fa55717a0746/hatch_vcs-0.5.0.tar.gz", hash = "sha256:0395fa126940340215090c344a2bf4e2a77bcbe7daab16f41b37b98c95809ff9", size = 11424, upload-time = "2025-05-27T05:16:04.49Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5f/48/1f85cee4b7b4f40b9b814b1febbc661bda6ced9649e410a0b74f6e415dd0/hatch_vcs-0.5.0-py3-none-any.whl", hash = "sha256:b49677dbdc597460cc22d01b27ab3696f5e16a21ecf2700fb01bc28e1f2a04a7", size = 8507, upload-time = "2025-05-27T05:16:03.184Z" },
+]
+
+[[package]]
+name = "hatchling"
+version = "1.27.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+    { name = "pathspec" },
+    { name = "pluggy" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
+    { name = "trove-classifiers" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8f/8a/cc1debe3514da292094f1c3a700e4ca25442489731ef7c0814358816bb03/hatchling-1.27.0.tar.gz", hash = "sha256:971c296d9819abb3811112fc52c7a9751c8d381898f36533bb16f9791e941fd6", size = 54983, upload-time = "2024-12-15T17:08:11.894Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/08/e7/ae38d7a6dfba0533684e0b2136817d667588ae3ec984c1a4e5df5eb88482/hatchling-1.27.0-py3-none-any.whl", hash = "sha256:d3a2f3567c4f926ea39849cdf924c7e99e6686c9c8e288ae1037c8fa2a5d937b", size = 75794, upload-time = "2024-12-15T17:08:10.364Z" },
+]
+
+[[package]]
 name = "idna"
 version = "3.10"
 source = { registry = "https://pypi.org/simple" }
@@ -360,7 +389,6 @@ wheels = [
 
 [[package]]
 name = "power-playlists"
-version = "0.1"
 source = { editable = "." }
 dependencies = [
     { name = "click", version = "8.1.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
@@ -388,6 +416,7 @@ test = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "hatch-vcs" },
     { name = "mypy" },
     { name = "ruff" },
     { name = "types-psutil" },
@@ -399,9 +428,10 @@ dev = [
 requires-dist = [
     { name = "click", specifier = ">=8.0,<9" },
     { name = "lockfile", specifier = ">=0.12" },
+    { name = "pdoc", marker = "extra == 'dev'", specifier = ">=15.0.0" },
     { name = "pdoc", marker = "extra == 'docs'", specifier = ">=15.0.0" },
-    { name = "power-playlists", extras = ["test", "docs"], marker = "extra == 'dev'" },
     { name = "psutil", specifier = ">=5.9,<6" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = "~=7.4.4" },
     { name = "pytest", marker = "extra == 'test'", specifier = "~=7.4.4" },
     { name = "python-daemon", specifier = ">=3.0,<4" },
     { name = "python-dateutil", specifier = ">=2.8.1,<3" },
@@ -409,10 +439,11 @@ requires-dist = [
     { name = "setuptools", specifier = ">=65.0" },
     { name = "spotipy", specifier = ">=2.24.0,<3" },
 ]
-provides-extras = ["test", "docs", "dev"]
+provides-extras = ["dev", "docs", "test"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "hatch-vcs", specifier = ">=0.5.0" },
     { name = "mypy", specifier = ">=1.17.1" },
     { name = "ruff", specifier = ">=0.12.11" },
     { name = "types-psutil", specifier = ">=7.0.0.20250822" },
@@ -600,6 +631,21 @@ wheels = [
 ]
 
 [[package]]
+name = "setuptools-scm"
+version = "9.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+    { name = "setuptools" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
+    { name = "typing-extensions", marker = "python_full_version < '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8f/8d/ffdcace33d0480d591057a30285b7c33f8dc431fed3fff7dbadf5f9f128f/setuptools_scm-9.2.0.tar.gz", hash = "sha256:6662c9b9497b6c9bf13bead9d7a9084756f68238302c5ed089fb4dbd29d102d7", size = 201229, upload-time = "2025-08-16T12:56:39.477Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f7/14/dd3a6053325e882fe191fb4b42289bbdfabf5f44307c302903a8a3236a0a/setuptools_scm-9.2.0-py3-none-any.whl", hash = "sha256:c551ef54e2270727ee17067881c9687ca2aedf179fa5b8f3fab9e8d73bdc421f", size = 62099, upload-time = "2025-08-16T12:56:37.912Z" },
+]
+
+[[package]]
 name = "six"
 version = "1.17.0"
 source = { registry = "https://pypi.org/simple" }
@@ -659,6 +705,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/5b/b9/1ed31d167be802da0fc95020d04cd27b7d7065cc6fbefdd2f9186f60d7bd/tomli-2.2.1-cp313-cp313-win32.whl", hash = "sha256:d3f5614314d758649ab2ab3a62d4f2004c825922f9e370b29416484086b264ec", size = 98724, upload-time = "2024-11-27T22:38:32.837Z" },
     { url = "https://files.pythonhosted.org/packages/c7/32/b0963458706accd9afcfeb867c0f9175a741bf7b19cd424230714d722198/tomli-2.2.1-cp313-cp313-win_amd64.whl", hash = "sha256:a38aa0308e754b0e3c67e344754dff64999ff9b513e691d0e786265c93583c69", size = 109383, upload-time = "2024-11-27T22:38:34.455Z" },
     { url = "https://files.pythonhosted.org/packages/6e/c2/61d3e0f47e2b74ef40a68b9e6ad5984f6241a942f7cd3bbfbdbd03861ea9/tomli-2.2.1-py3-none-any.whl", hash = "sha256:cb55c73c5f4408779d0cf3eef9f762b9c9f147a77de7b258bef0a5628adc85cc", size = 14257, upload-time = "2024-11-27T22:38:35.385Z" },
+]
+
+[[package]]
+name = "trove-classifiers"
+version = "2025.9.8.13"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3c/5f/971620e58d01e22f14e461bf5319bba41d1bdcf5a4fca638822f58808ee7/trove_classifiers-2025.9.8.13.tar.gz", hash = "sha256:2de91c8f286b7fea55072061924f69e7f3bdf7a9cb63719c90090e41c6657d3a", size = 16955, upload-time = "2025-09-08T13:52:35.82Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2a/7a/77c26691f16056708551a85884e871dddf75f3fdafa2a4051030ef9e1aa8/trove_classifiers-2025.9.8.13-py3-none-any.whl", hash = "sha256:f784db2f859ee1ffa168adaf0868006c20dee5e673a3ff813a2cd51ef2c465f9", size = 14130, upload-time = "2025-09-08T13:52:34.573Z" },
 ]
 
 [[package]]
