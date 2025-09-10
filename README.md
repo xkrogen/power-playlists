@@ -13,9 +13,9 @@ background process with periodic updates.
 ## Quick Start Guide
 
 First, make sure you have a functioning Python 3.9+ installation. Then,
-install `power-playlists` from PyPi:
+install `power_playlists` from PyPi:
 
-    > pip install power-playlists
+    > pip install power_playlists
 
 After this you can simply run `power-playlists` to interact with the
 tool, including seeing the usage info:

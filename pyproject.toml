@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "power-playlists"
+name = "power_playlists"
 dynamic = ["version"]
 description = "A Python CLI tool for creating dynamic Spotify playlists using YAML configuration files"
 readme = "README.md"
@@ -48,7 +48,7 @@ docs = [
     "pdoc>=15.0.0",
 ]
 dev = [
-    "power-playlists[test,docs]",
+    "power_playlists[test,docs]",
 ]
 
 [project.scripts]
