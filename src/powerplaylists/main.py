@@ -89,6 +89,18 @@ def run(userconf: list[str], verifymode: str, force: bool):
         sys.exit(1)
 
 
+@cli.command()
+def edit():
+    """Open a graphical editor for user configuration files."""
+    from .gui_editor import launch_gui_editor
+
+    app_conf = utils.global_conf
+    if app_conf is None:
+        raise RuntimeError("global_conf is not initialized")
+
+    launch_gui_editor(app_conf)
+
+
 @cli.group(
     help="Control the background process to keep playlists updated."
     + (
