@@ -43,7 +43,7 @@ jobs:
         run: uv run python scripts/generate_node_docs.py
 
       - name: Build documentation
-        run: uv run pdoc src/powerplaylists -o docs-output
+        run: uv run pdoc src/power_playlists -o docs-output
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
