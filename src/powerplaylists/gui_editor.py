@@ -16,11 +16,13 @@ try:
     from tkinter import filedialog, messagebox, simpledialog, ttk
 
     import yaml
+
     TKINTER_AVAILABLE = True
 except ImportError:
     TKINTER_AVAILABLE = False
     # Create stubs to avoid type errors
     from typing import Any
+
     tk = Any  # type: ignore
     ttk = Any  # type: ignore
     yaml = Any  # type: ignore
@@ -198,9 +200,7 @@ if TKINTER_AVAILABLE:
                 row += 1
 
             # Add new property section
-            ttk.Separator(main_frame, orient="horizontal").grid(
-                row=row, column=0, columnspan=2, sticky="ew", pady=10
-            )
+            ttk.Separator(main_frame, orient="horizontal").grid(row=row, column=0, columnspan=2, sticky="ew", pady=10)
             row += 1
 
             ttk.Label(main_frame, text="Add new property:").grid(row=row, column=0, columnspan=2, sticky=tk.W)
