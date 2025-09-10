@@ -20,7 +20,7 @@ install `power-playlists` from PyPi:
 After this you can simply run `power-playlists` to interact with the
 tool, including seeing the usage info:
 
-``` bash
+```shell
 > power-playlists
 Usage: power-playlists [OPTIONS] COMMAND [ARGS]...
 
@@ -69,7 +69,7 @@ file changes, you will have to re-login.
 
 Let's look at a simple example:
 
-``` yaml
+```yaml
 PlaylistA:
   type: 'playlist'
   uri: 'spotify:playlist:xxxxxxxxxxxxxxxxx'
@@ -118,18 +118,18 @@ Power Playlists can run continuously in daemon mode to automatically update your
 
 For general Unix and Linux systems, Power Playlists provides self-managed daemon functionality:
 
-```bash
+```shell
 # Start the daemon in the background
-power-playlists daemon start
+> power-playlists daemon start
 
 # Check if the daemon is running
-power-playlists daemon show
+> power-playlists daemon show
 
 # Stop the daemon
-power-playlists daemon stop
+> power-playlists daemon stop
 
 # Restart the daemon (stops existing and starts new)
-power-playlists daemon restart
+> power-playlists daemon restart
 ```
 
 The daemon will:
@@ -142,7 +142,7 @@ The daemon will:
 
 On macOS systems, using `launchd` is preferred over the self-managed daemon as it provides better system integration:
 
-```bash
+```shell
 # Install the daemon to run automatically via launchd
 power-playlists launchd install
 
@@ -175,21 +175,21 @@ daemon_pidfile: "~/.power-playlists/daemon.pid"
 #### Monitoring and Troubleshooting
 
 **Check daemon status:**
-```bash
+```shell
 # For Unix daemon
-power-playlists daemon show
+> power-playlists daemon show
 
 # For macOS launchd
-launchctl list | grep power-playlists
+> launchctl list | grep power-playlists
 ```
 
 **View logs:**
-```bash
+```shell
 # Follow live logs
-tail -f ~/.power-playlists/app.log
+> tail -f ~/.power-playlists/app.log
 
 # View recent log entries
-tail -50 ~/.power-playlists/app.log
+> tail -50 ~/.power-playlists/app.log
 ```
 
 **Common issues:**
