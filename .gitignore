@@ -10,6 +10,9 @@ docs/_autodoc
 **/.DS_Store
 docs-output/
 
+# Task runner cache
+.task/
+
 # This is auto-generated and shouldn't be checked into git
 docs/NODE_REFERENCE.md
 src/**/_version.py
