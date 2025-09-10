@@ -55,7 +55,7 @@ dev = [
 power-playlists = "power_playlists.main:cli"
 
 [project.urls]
-Homepage = "https://xkrogen.github.io/power-playlists/"
+Homepage = "https://github.com/xkrogen/power-playlists/"
 Repository = "https://github.com/xkrogen/power-playlists"
 "Bug Tracker" = "https://github.com/xkrogen/power-playlists/issues"
 "Documentation" = "https://xkrogen.github.io/power-playlists/"
