@@ -99,121 +99,16 @@ Reference](https://xkrogen.github.io/power-playlists/powerplaylists.html#node-re
 
 ## Examples
 
-Power Playlists supports many advanced features through its flexible node system. Several example configurations are available in the [`samples/`](samples/) directory demonstrating different capabilities, from basic filtering to complex multi-stage processing with dynamic templates.
+Power Playlists supports many advanced features through its flexible node system. Several example configurations are available in the [`samples/`](https://github.com/xkrogen/power-playlists/samples/) directory demonstrating different capabilities, from basic filtering to complex multi-stage processing with dynamic templates.
 
 ### Sample Files
 
-- [`samples/basic-combiner.yaml`](samples/basic-combiner.yaml) - Basic playlist combination
-- [`samples/basic-filtering.yaml`](samples/basic-filtering.yaml) - Time-based and liked track filtering with combining, sorting, and deduplication
-- [`samples/dynamic-template-release-date-filtering.yaml`](samples/dynamic-template-release-date-filtering.yaml) - Music organization by release decades using dynamic templates
-- [`samples/complex-workflow.yaml`](samples/complex-workflow.yaml) - Comprehensive multi-stage processing with mood-based workflows and master playlist creation
+- [`samples/basic-combiner.yaml`](https://github.com/xkrogen/power-playlists/samples/basic-combiner.yaml) - Basic playlist combination
+- [`samples/basic-filtering.yaml`](https://github.com/xkrogen/power-playlists/samples/basic-filtering.yaml) - Time-based and liked track filtering with combining, sorting, and deduplication
+- [`samples/dynamic-template-release-date-filtering.yaml`](https://github.com/xkrogen/power-playlists/samples/dynamic-template-release-date-filtering.yaml) - Music organization by release decades using dynamic templates
+- [`samples/complex-workflow.yaml`](https://github.com/xkrogen/power-playlists/samples/complex-workflow.yaml) - Comprehensive multi-stage processing with mood-based workflows and master playlist creation
 
 To try any of these examples, copy them to your `~/.power-playlists/userconf/` directory and replace the placeholder URIs with your actual Spotify playlist URIs.
-
-### Running in Daemon Mode
-
-Power Playlists can run continuously in daemon mode to automatically update your playlists on a schedule. This allows you to set up your playlist definitions once and have them automatically maintained without manual intervention.
-
-#### Unix/Linux Daemon Commands
-
-For general Unix and Linux systems, Power Playlists provides self-managed daemon functionality:
-
-```shell
-# Start the daemon in the background
-> power-playlists daemon start
-
-# Check if the daemon is running
-> power-playlists daemon show
-
-# Stop the daemon
-> power-playlists daemon stop
-
-# Restart the daemon (stops existing and starts new)
-> power-playlists daemon restart
-```
-
-The daemon will:
-- Run playlist updates every 12 hours by default (configurable)
-- Log all activity to `~/.power-playlists/app.log` with log rotation
-- Use a PID file at `~/.power-playlists/daemon.pid` for process management
-- Continue running across system reboots if started from a startup script
-
-#### macOS launchd Integration (Recommended for macOS)
-
-On macOS systems, using `launchd` is preferred over the self-managed daemon as it provides better system integration:
-
-```shell
-# Install the daemon to run automatically via launchd
-power-playlists launchd install
-
-# Uninstall the daemon from launchd
-power-playlists launchd uninstall
-```
-
-The launchd integration:
-- Creates a plist file at `~/Library/LaunchAgents/com.github.xkrogen.power-playlists.plist`
-- Automatically starts the daemon when you log in
-- Manages the process lifecycle through the system
-- Uses the same default 12-hour update interval
-
-#### Configuration Options
-
-You can customize daemon behavior by creating a configuration file at `~/.power-playlists/conf.yaml`:
-
-```yaml
-# Update interval in minutes (default: 720 = 12 hours)
-daemon_sleep_period_minutes: 360  # 6 hours
-
-# Log file location and level
-log_file_path: "~/.power-playlists/app.log"
-log_file_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
-
-# PID file location (Unix daemon only)
-daemon_pidfile: "~/.power-playlists/daemon.pid"
-```
-
-#### Monitoring and Troubleshooting
-
-**Check daemon status:**
-```shell
-# For Unix daemon
-> power-playlists daemon show
-
-# For macOS launchd
-> launchctl list | grep power-playlists
-```
-
-**View logs:**
-```shell
-# Follow live logs
-> tail -f ~/.power-playlists/app.log
-
-# View recent log entries
-> tail -50 ~/.power-playlists/app.log
-```
-
-**Common issues:**
-- If daemon fails to start, check that `~/.power-playlists/userconf/` contains valid configuration files
-- Ensure Spotify authentication tokens are valid (you may need to re-run manually first)
-- On macOS, if launchd installation fails, verify you have write permissions to `~/Library/LaunchAgents/`
-
-The daemon will process all YAML configuration files found in your `~/.power-playlists/userconf/` directory during each update cycle.
-
-## Development
-
-Power Playlists uses modern Python tooling with
-[uv](https://github.com/astral-sh/uv) for dependency management and
-builds. To set up a development environment:
-
-1.  Install uv: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-2.  Clone the repository
-3.  Run `uv sync --all-extras` to install all dependencies including
-    testing and documentation tools
-4.  Run tests with `uv run python -m pytest tests/`
-5.  Run the tool with `uv run power-playlists --help`
-
-The project is configured with `pyproject.toml` and includes a lockfile
-(`uv.lock`) for reproducible builds.
 
 ## The Backstory
 
@@ -255,3 +150,108 @@ it's fairly easy to get started on your own, and you don't run the
 risk of setting up a bunch of custom playlist definitions and building
 your music library around them -- only to find out that one day, the
 application breaks and doesn't get fixed, or has to shut down.
+
+## Running in Daemon Mode
+
+Power Playlists can run continuously in daemon mode to automatically update your playlists on a schedule. This allows you to set up your playlist definitions once and have them automatically maintained without manual intervention.
+
+### Unix/Linux Daemon Commands
+
+For general Unix and Linux systems, Power Playlists provides self-managed daemon functionality:
+
+```shell
+# Start the daemon in the background
+> power-playlists daemon start
+
+# Check if the daemon is running
+> power-playlists daemon show
+
+# Stop the daemon
+> power-playlists daemon stop
+
+# Restart the daemon (stops existing and starts new)
+> power-playlists daemon restart
+```
+
+The daemon will:
+- Run playlist updates every 12 hours by default (configurable)
+- Log all activity to `~/.power-playlists/app.log` with log rotation
+- Use a PID file at `~/.power-playlists/daemon.pid` for process management
+- Continue running across system reboots if started from a startup script
+
+### macOS launchd Integration (Recommended for macOS)
+
+On macOS systems, using `launchd` is preferred over the self-managed daemon as it provides better system integration:
+
+```shell
+# Install the daemon to run automatically via launchd
+> power-playlists launchd install
+
+# Uninstall the daemon from launchd
+> power-playlists launchd uninstall
+```
+
+The launchd integration:
+- Creates a plist file at `~/Library/LaunchAgents/com.github.xkrogen.power-playlists.plist`
+- Automatically starts the daemon when you log in
+- Manages the process lifecycle through the system
+- Uses the same default 12-hour update interval
+
+### Configuration Options
+
+You can customize daemon behavior by creating a configuration file at `~/.power-playlists/conf.yaml`:
+
+```yaml
+# Update interval in minutes (default: 720 = 12 hours)
+daemon_sleep_period_minutes: 360  # 6 hours
+
+# Log file location and level
+log_file_path: "~/.power-playlists/app.log"
+log_file_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+
+# PID file location (Unix daemon only)
+daemon_pidfile: "~/.power-playlists/daemon.pid"
+```
+
+### Monitoring and Troubleshooting
+
+**Check daemon status:**
+```shell
+# For Unix daemon
+> power-playlists daemon show
+
+# For macOS launchd
+> launchctl list | grep power-playlists
+```
+
+**View logs:**
+```shell
+# Follow live logs
+> tail -f ~/.power-playlists/app.log
+
+# View recent log entries
+> tail -50 ~/.power-playlists/app.log
+```
+
+**Common issues:**
+- If daemon fails to start, check that `~/.power-playlists/userconf/` contains valid configuration files
+- Ensure Spotify authentication tokens are valid (you may need to re-run manually first)
+- On macOS, if launchd installation fails, verify you have write permissions to `~/Library/LaunchAgents/`
+
+The daemon will process all YAML configuration files found in your `~/.power-playlists/userconf/` directory during each update cycle.
+
+## Development
+
+Power Playlists uses modern Python tooling with
+[uv](https://github.com/astral-sh/uv) for dependency management and
+builds. To set up a development environment:
+
+1.  Install uv: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+2.  Clone the repository
+3.  Run `uv sync --all-extras` to install all dependencies including
+    testing and documentation tools
+4.  Run tests with `uv run python -m pytest tests/`
+5.  Run the tool with `uv run power-playlists --help`
+
+The project is configured with `pyproject.toml` and includes a lockfile
+(`uv.lock`) for reproducible builds.
