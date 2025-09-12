@@ -33,17 +33,17 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
       
-      - name: Install dependencies
-        run: uv sync --extra docs
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Setup Pages
         uses: actions/configure-pages@v5
       
-      - name: Generate node reference
-        run: uv run python scripts/generate_node_docs.py
-
       - name: Build documentation
-        run: uv run pdoc src/power_playlists -o docs-output
+        run: task docs
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

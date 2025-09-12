@@ -264,63 +264,42 @@ Power Playlists uses modern Python tooling with [uv](https://github.com/astral-s
 
 ### Quick Setup
 
-1. Install [Task](https://taskfile.dev/#/installation) (task runner) or use the included binary: `./bin/task`
+1. Install [Task](https://taskfile.dev/docs/installation) (task runner)
 2. Clone the repository 
-3. Run `task setup` (or `./bin/task setup`) to install all dependencies and set up the development environment
-4. Run `task --list` (or `./bin/task --list`) to see all available development tasks
+3. Run `task setup` to install all dependencies and set up the development environment
+4. Run `task --list` to see all available development tasks
 
 ### Development Tasks
 
 The project uses Task to automate common development workflows:
 
-```bash
+```shell
 # Complete development setup
-task setup
+> task setup
 
 # Run all validation checks (tests, linting, formatting, type checking)
-task check-all
-
-# Run tests only
-task test
-
-# Format and fix linting issues
-task fix
-
-# Run individual checks
-task lint           # Run linting
-task format-check   # Check formatting  
-task typecheck      # Run type checking
-
-# Test application functionality
-task app-help       # Test CLI help
-task app-run-help   # Test run command help
-
-# Development cycle (quick lint + test)
-task dev-test
-```
-
-### Manual Commands
-
-If you prefer to run commands manually:
-
-```bash
-# Install dependencies
-uv sync --all-extras
+> task check
 
 # Run tests
-uv run pytest
+> task test
 
-# Run linting  
-uv run ruff check .
+# Run tests with verbose output
+> task test -- -v
 
-# Format code
-uv run ruff format .
+# Run the application with help
+> task run -- --help
 
-# Type checking
-uv run mypy src/
+# Run the application with a config file  
+> task run -- run --userconf path/to/config.yaml
 
-# Run the application
-uv run power-playlists --help
+# Auto-fix formatting and linting issues
+> task fix
+
+# Generate documentation
+> task docs
+
+# Clean build artifacts
+> task clean
 ```
 
 The project is configured with `pyproject.toml` and includes a lockfile (`uv.lock`) for reproducible builds. The CI pipeline uses the same Task commands as local development to ensure consistency.

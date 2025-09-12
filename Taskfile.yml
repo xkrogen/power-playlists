@@ -16,9 +16,10 @@ tasks:
       - which uv
 
   install:
-    desc: Install all project dependencies
+    desc: Install all project dependencies and Python
     deps: [install-uv]
     cmds:
+      - uv python install {{.PYTHON_VERSION | default "3.12"}}
       - uv sync --all-extras
     sources:
       - pyproject.toml
@@ -30,126 +31,59 @@ tasks:
     desc: Complete development environment setup
     deps: [install]
     cmds:
-      - mkdir -p ~/.power-playlists/userconf
       - echo "Development environment setup complete!"
 
-  # Testing tasks
+  # Testing task with CLI_ARGS support
   test:
-    desc: Run all tests
+    desc: Run tests (use -- to pass args, e.g., task test -- -v)
+    deps: [install]
+    cmds:
+      - uv run pytest {{.CLI_ARGS}}
+    sources:
+      - src/**/*.py
+      - tests/**/*.py
+
+  # Application runner with CLI_ARGS support
+  run:
+    desc: Run power-playlists application (use -- to pass args)
+    deps: [setup]
+    cmds:
+      - uv run power-playlists {{.CLI_ARGS}}
+
+  # Documentation with full workflow
+  docs:
+    desc: Generate complete documentation
+    deps: [install]
+    cmds:
+      - uv sync --extra docs
+      - uv run python scripts/generate_node_docs.py
+      - uv run pdoc src/power_playlists -o docs-output
+    sources:
+      - src/**/*.py
+      - scripts/generate_node_docs.py
+
+  # Combined validation task
+  check:
+    desc: Run all validation checks (tests, linting, formatting, type checking)
     deps: [install]
     cmds:
       - uv run pytest
-    sources:
-      - src/**/*.py
-      - tests/**/*.py
-
-  test-verbose:
-    desc: Run tests with verbose output
-    deps: [install]
-    cmds:
-      - uv run pytest -v
-
-  # Linting and formatting tasks
-  lint:
-    desc: Run ruff linting checks
-    deps: [install]
-    cmds:
       - uv run ruff check .
-    sources:
-      - src/**/*.py
-      - tests/**/*.py
-      - pyproject.toml
-
-  lint-fix:
-    desc: Run ruff linting with auto-fix
-    deps: [install]
-    cmds:
-      - uv run ruff check . --fix
-
-  format:
-    desc: Format code with ruff
-    deps: [install]
-    cmds:
-      - uv run ruff format .
-    sources:
-      - src/**/*.py
-      - tests/**/*.py
-
-  format-check:
-    desc: Check code formatting
-    deps: [install]
-    cmds:
       - uv run ruff format --check .
+      - uv run mypy src/
+      - echo "All checks passed! ✅"
     sources:
       - src/**/*.py
       - tests/**/*.py
-
-  # Type checking
-  typecheck:
-    desc: Run mypy type checking
-    deps: [install]
-    cmds:
-      - uv run mypy src/
-    sources:
-      - src/**/*.py
       - pyproject.toml
 
-  # Documentation
-  docs:
-    desc: Generate documentation
-    deps: [install]
-    cmds:
-      - uv run pdoc src/powerplaylists --output-directory docs/
-    sources:
-      - src/**/*.py
-
-  # Application testing
-  app-help:
-    desc: Test CLI help functionality
-    deps: [setup]
-    cmds:
-      - uv run power-playlists --help
-
-  app-run-help:
-    desc: Test run command help
-    deps: [setup]
-    cmds:
-      - uv run power-playlists run --help
-
-  app-test-config:
-    desc: Test application with sample config (expect validation errors)
-    deps: [setup]
-    cmds:
-      - uv run power-playlists run --userconf samples/basic-combiner.yaml || echo "Expected validation errors with sample config"
-
-  # Combined validation tasks
-  check-format:
-    desc: Run all formatting and linting checks
-    deps: [format-check, lint]
-
-  check-all:
-    desc: Run all validation checks (tests, linting, formatting, type checking)
-    deps: [test, lint, format-check, typecheck]
-    cmds:
-      - echo "All checks passed! ✅"
-
-  ci:
-    desc: Run the same checks as CI
-    deps: [check-all]
-
-  # Development workflow tasks
+  # Auto-fix task
   fix:
     desc: Auto-fix linting and formatting issues
     deps: [install]
     cmds:
       - uv run ruff format .
       - uv run ruff check . --fix
-
-  dev-test:
-    desc: Quick development test cycle
-    deps: [lint, test]
-    cmds:
-      - echo "Quick development cycle complete! ✅"
 
   # Clean tasks
   clean:

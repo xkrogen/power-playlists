@@ -22,14 +22,16 @@ jobs:
       with:
         version: "latest"
     
-    - name: Set up Python
-      run: uv python install 3.12
+    - name: Install Task
+      uses: arduino/setup-task@v2
+      with:
+        version: 3.x
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
     
-    - name: Install dependencies
-      run: uv sync --all-extras
-    
-    - name: Build package
-      run: uv build
+    - name: Install dependencies and build
+      run: |
+        task install
+        uv build
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
