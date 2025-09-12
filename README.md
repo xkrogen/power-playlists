@@ -264,7 +264,7 @@ Power Playlists uses modern Python tooling with [uv](https://github.com/astral-s
 
 ### Quick Setup
 
-1. Install [Task](https://taskfile.dev/docs/installation) (task runner)
+1. Install [Task](https://taskfile.dev/docs/installation) for development automation. If you're using Homebrew, simply run `brew install go-task`.
 2. Clone the repository 
 3. Run `task install` to install all dependencies and set up the development environment
 4. Run `task --list` to see all available development tasks

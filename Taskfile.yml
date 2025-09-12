@@ -36,6 +36,7 @@ tasks:
     sources:
       - src/**/*.py
       - tests/**/*.py
+      - pyproject.toml
 
   # Application runner with CLI_ARGS support
   run:
@@ -68,20 +69,23 @@ tasks:
       - src/**/*.py
       - scripts/generate_node_docs.py
 
-  # Combined validation task
-  check:
-    desc: Run all validation checks (tests, linting, formatting, type checking)
+  # Linting task
+  lint:
+    desc: Run linting, formatting, and type checking
     deps: [install]
     cmds:
-      - uv run pytest
       - uv run ruff check .
       - uv run ruff format --check .
       - uv run mypy src/
-      - echo "All checks passed! ✅"
     sources:
       - src/**/*.py
       - tests/**/*.py
       - pyproject.toml
+
+  # Combined validation task
+  check:
+    desc: Run all validation checks (tests, linting, formatting, type checking)
+    deps: [lint, test]
 
   # Auto-fix task
   fix:
@@ -90,6 +94,10 @@ tasks:
     cmds:
       - uv run ruff format .
       - uv run ruff check . --fix
+    sources:
+      - src/**/*.py
+      - tests/**/*.py
+      - pyproject.toml
 
   # Clean tasks
   clean:

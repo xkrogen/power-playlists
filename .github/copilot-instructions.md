@@ -11,18 +11,7 @@ Power Playlists is a Python CLI tool for creating dynamic Spotify playlists usin
 ### Bootstrap and Setup Commands
 **PREFERRED**: Use Task for all development operations:
 
-1. **Install Task**: 
-   ```shell
-   # macOS/Linux with Homebrew
-   > brew install go-task/tap/go-task
-   
-   # macOS/Linux with curl
-   > sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b ~/.local/bin
-   
-   # Windows with Scoop  
-   > scoop install task
-   ```
-   For other methods: https://taskfile.dev/docs/installation
+1. **Install Task**: `sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b ~/.local/bin`
 2. **Complete setup**: `task install` - installs UV, dependencies, and Python
 3. **List all tasks**: `task --list` - shows all available development tasks
 
