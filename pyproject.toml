@@ -1,18 +1,23 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "power-playlists"
-version = "0.1"
-description = "TODO"
+dynamic = ["version"]
+description = "A Python CLI tool for creating dynamic Spotify playlists using YAML configuration files"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
     {name = "Erik Krogen", email = "erikkrogen@gmail.com"},
 ]
-keywords = ["spotify", "playlists", "tool"]
+keywords = ["spotify", "playlists", "music", "cli", "yaml", "automation"]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Utilities",
+    "License :: OSI Approved :: MIT License",
     "Operating System :: Unix",
     "Operating System :: POSIX", 
     "Programming Language :: Python",
@@ -47,14 +52,23 @@ dev = [
 ]
 
 [project.scripts]
-power-playlists = "powerplaylists.main:cli"
+power-playlists = "power_playlists.main:cli"
 
 [project.urls]
-Homepage = "TODO"
+Homepage = "https://github.com/xkrogen/power-playlists/"
 Repository = "https://github.com/xkrogen/power-playlists"
+"Bug Tracker" = "https://github.com/xkrogen/power-playlists/issues"
+"Documentation" = "https://xkrogen.github.io/power-playlists/"
+
+[tool.hatch.version]
+source = "vcs"
+raw-options = { local_scheme = "no-local-version" }
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/power_playlists/_version.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/powerplaylists"]
+packages = ["src/power_playlists"]
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -88,6 +102,7 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["T20"]  # Allow print statements in tests
+"src/**/_version.py" = ["ALL"]  # Ignore all linting in auto-generated version files
 
 [tool.mypy]
 python_version = "3.12"
@@ -104,6 +119,7 @@ ignore_missing_imports = true
 
 [dependency-groups]
 dev = [
+    "hatch-vcs>=0.5.0",
     "mypy>=1.17.1",
     "ruff>=0.12.11",
     "types-psutil>=7.0.0.20250822",

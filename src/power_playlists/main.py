@@ -17,9 +17,10 @@ from daemon import DaemonContext, pidfile
 from lockfile import pidlockfile
 from spotipy.oauth2 import SpotifyPKCE
 
-from powerplaylists.spotify_client import SpotifyClient
+from power_playlists.spotify_client import SpotifyClient
 
 from . import nodes, utils
+from ._version import __version__
 from .nodes import OutputNode
 from .utils import AppConfig, Constants, UserConfig, VerifyMode
 
@@ -34,6 +35,7 @@ def exit_message(*message_print_values, exit_code=1):
 
 
 @click.group(context_settings=dict(max_content_width=9999))
+@click.version_option(version=__version__, prog_name="power-playlists")
 @click.option(
     "--appconf",
     default=None,
