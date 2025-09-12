@@ -260,16 +260,46 @@ The daemon will process all YAML configuration files found in your `~/.power-pla
 
 ## Development
 
-Power Playlists uses modern Python tooling with
-[uv](https://github.com/astral-sh/uv) for dependency management and
-builds. To set up a development environment:
+Power Playlists uses modern Python tooling with [uv](https://github.com/astral-sh/uv) for dependency management and [Task](https://taskfile.dev) for development automation.
 
-1.  Install uv: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-2.  Clone the repository
-3.  Run `uv sync --all-extras` to install all dependencies including
-    testing and documentation tools
-4.  Run tests with `uv run python -m pytest tests/`
-5.  Run the tool with `uv run power-playlists --help`
+### Quick Setup
 
-The project is configured with `pyproject.toml` and includes a lockfile
-(`uv.lock`) for reproducible builds.
+1. Install [Task](https://taskfile.dev/docs/installation) for development automation. If you're using Homebrew, simply run `brew install go-task`.
+2. Clone the repository 
+3. Run `task install` to install all dependencies and set up the development environment
+4. Run `task --list` to see all available development tasks
+
+### Development Tasks
+
+The project uses Task to automate common development workflows:
+
+```shell
+# Complete development setup
+> task install
+
+# Run all validation checks (tests, linting, formatting, type checking)
+> task check
+
+# Run tests
+> task test
+
+# Run tests with verbose output
+> task test -- -v
+
+# Run the application with help
+> task run -- --help
+
+# Run the application with a config file  
+> task run -- run --userconf path/to/config.yaml
+
+# Auto-fix formatting and linting issues
+> task fix
+
+# Generate documentation
+> task docs
+
+# Clean build artifacts
+> task clean
+```
+
+The project is configured with `pyproject.toml` and includes a lockfile (`uv.lock`) for reproducible builds. The CI pipeline uses the same Task commands as local development to ensure consistency.

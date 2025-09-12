@@ -1,0 +1,119 @@
+version: '3'
+
+vars:
+  UV_PATH: '{{default "$HOME/.local/bin" .UV_PATH}}'
+
+env:
+  PATH: '{{.UV_PATH}}:{{.PATH}}'
+
+tasks:
+  # Setup and installation tasks
+  install-uv:
+    desc: Install UV package manager
+    cmds:
+      - curl -LsSf https://astral.sh/uv/install.sh | sh
+    status:
+      - which uv
+
+  install:
+    desc: Install all project dependencies and Python
+    deps: [install-uv]
+    cmds:
+      - uv python install {{.PYTHON_VERSION | default "3.12"}}
+      - uv sync --all-extras
+    sources:
+      - pyproject.toml
+      - uv.lock
+    generates:
+      - .venv/**/*
+
+  # Testing task with CLI_ARGS support
+  test:
+    desc: Run tests (use -- to pass args, e.g., task test -- -v)
+    deps: [install]
+    cmds:
+      - uv run pytest {{.CLI_ARGS}}
+    sources:
+      - src/**/*.py
+      - tests/**/*.py
+      - pyproject.toml
+
+  # Application runner with CLI_ARGS support
+  run:
+    desc: Run power-playlists application (use -- to pass args)
+    deps: [install]
+    cmds:
+      - uv run power-playlists {{.CLI_ARGS}}
+
+  # Build task for packaging
+  build:
+    desc: Build the package for distribution
+    deps: [install]
+    cmds:
+      - uv build
+    sources:
+      - src/**/*.py
+      - pyproject.toml
+    generates:
+      - dist/**/*
+
+  # Documentation with full workflow
+  docs:
+    desc: Generate complete documentation
+    deps: [install]
+    cmds:
+      - uv sync --extra docs
+      - uv run python scripts/generate_node_docs.py
+      - uv run pdoc src/power_playlists -o docs-output
+    sources:
+      - src/**/*.py
+      - scripts/generate_node_docs.py
+
+  # Linting task
+  lint:
+    desc: Run linting, formatting, and type checking
+    deps: [install]
+    cmds:
+      - uv run ruff check .
+      - uv run ruff format --check .
+      - uv run mypy src/
+    sources:
+      - src/**/*.py
+      - tests/**/*.py
+      - pyproject.toml
+
+  # Combined validation task
+  check:
+    desc: Run all validation checks (tests, linting, formatting, type checking)
+    deps: [lint, test]
+
+  # Auto-fix task
+  fix:
+    desc: Auto-fix linting and formatting issues
+    deps: [install]
+    cmds:
+      - uv run ruff format .
+      - uv run ruff check . --fix
+    sources:
+      - src/**/*.py
+      - tests/**/*.py
+      - pyproject.toml
+
+  # Clean tasks
+  clean:
+    desc: Clean build artifacts and caches
+    cmds:
+      - rm -rf .venv/
+      - rm -rf .pytest_cache/
+      - rm -rf .mypy_cache/
+      - rm -rf .ruff_cache/
+      - rm -rf build/
+      - rm -rf dist/
+      - rm -rf *.egg-info/
+
+  # Display available tasks
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list-all
+    silent: true
