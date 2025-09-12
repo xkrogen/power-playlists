@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Power Playlists Configuration Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            overflow: hidden;
+        }
+
+        .toolbar {
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 12px 20px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .btn {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #005a9e;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+
+        .status-bar {
+            background: #f8f9fa;
+            border-top: 1px solid #e0e0e0;
+            padding: 8px 20px;
+            font-size: 12px;
+            color: #6c757d;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 100vw;
+            height: calc(100vh - 120px);
+            overflow: hidden;
+            background: #fafafa;
+        }
+
+        .canvas {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+
+        .canvas.dragging {
+            cursor: grabbing;
+        }
+
+        .node {
+            position: absolute;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            min-width: 180px;
+            padding: 0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        .node:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transform: translateY(-1px);
+        }
+
+        .node.selected {
+            border-color: #007acc;
+            box-shadow: 0 0 0 2px rgba(0,122,204,0.2);
+        }
+
+        .node-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 7px 7px 0 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .node-icon {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .node-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .node-body {
+            padding: 12px 16px;
+            background: white;
+            border-radius: 0 0 7px 7px;
+        }
+
+        .node-property {
+            font-size: 12px;
+            color: #374151;
+            margin-bottom: 4px;
+        }
+
+        .node-property:last-child {
+            margin-bottom: 0;
+        }
+
+        .node-property strong {
+            color: #1f2937;
+        }
+
+        .connection {
+            position: absolute;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .connection-line {
+            stroke: #6b7280;
+            stroke-width: 2;
+            fill: none;
+            stroke-dasharray: 5, 5;
+        }
+
+        .connection-arrow {
+            fill: #6b7280;
+        }
+
+        .node-type-playlist .node-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .node-type-playlist .node-icon {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .node-type-filter .node-header {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .node-type-filter .node-icon {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .node-type-output .node-header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .node-type-output .node-icon {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #007acc;
+            box-shadow: 0 0 0 2px rgba(0,122,204,0.2);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button class="btn" id="loadBtn">Load</button>
+        <button class="btn" id="saveBtn">Save</button>
+        <button class="btn" id="saveAsBtn">Save As</button>
+        <div style="margin-left: auto; display: flex; gap: 12px;">
+            <button class="btn btn-secondary" id="addNodeBtn">Add Node</button>
+        </div>
+    </div>
+
+    <div class="canvas-container">
+        <div class="canvas" id="canvas">
+            <svg id="connections" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+            </svg>
+        </div>
+    </div>
+
+    <div class="status-bar">
+        <span id="statusText">Ready - Configuration loaded automatically</span>
+    </div>
+
+    <!-- Node Edit Modal -->
+    <div class="modal hidden" id="editModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">Edit Node</h2>
+            </div>
+            <div id="modalForm">
+                <!-- Form fields will be generated here -->
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
+                <button class="btn" id="saveNodeBtn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class ConfigurationEditor {
+            constructor() {
+                this.nodes = new Map();
+                this.connections = [];
+                this.selectedNode = null;
+                this.dragOffset = { x: 0, y: 0 };
+                this.isDragging = false;
+                this.canvasOffset = { x: 0, y: 0 };
+                this.currentConfig = null;
+
+                this.initializeElements();
+                this.setupEventListeners();
+                this.loadInitialConfiguration();
+            }
+
+            initializeElements() {
+                this.canvas = document.getElementById('canvas');
+                this.connectionsContainer = document.getElementById('connections');
+                this.statusText = document.getElementById('statusText');
+                this.editModal = document.getElementById('editModal');
+                this.modalTitle = document.getElementById('modalTitle');
+                this.modalForm = document.getElementById('modalForm');
+            }
+
+            setupEventListeners() {
+                // Toolbar buttons
+                document.getElementById('loadBtn').addEventListener('click', () => this.loadConfiguration());
+                document.getElementById('saveBtn').addEventListener('click', () => this.saveConfiguration());
+                document.getElementById('saveAsBtn').addEventListener('click', () => this.saveAsConfiguration());
+                document.getElementById('addNodeBtn').addEventListener('click', () => this.addNewNode());
+
+                // Modal buttons
+                document.getElementById('cancelBtn').addEventListener('click', () => this.closeModal());
+                document.getElementById('saveNodeBtn').addEventListener('click', () => this.saveNodeChanges());
+
+                // Canvas events
+                this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                document.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+
+                // Prevent context menu
+                this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+            }
+
+            async loadInitialConfiguration() {
+                try {
+                    const response = await fetch('/api/load');
+                    if (response.ok) {
+                        const config = await response.json();
+                        this.displayConfiguration(config);
+                        this.statusText.textContent = `Loaded: ${config.filename || 'configuration'}`;
+                    } else {
+                        this.statusText.textContent = 'No configuration loaded - use Load button';
+                    }
+                } catch (error) {
+                    console.error('Failed to load initial configuration:', error);
+                    this.statusText.textContent = 'Failed to load initial configuration';
+                }
+            }
+
+            async loadConfiguration() {
+                try {
+                    const response = await fetch('/api/load');
+                    if (response.ok) {
+                        const config = await response.json();
+                        this.displayConfiguration(config);
+                        this.statusText.textContent = `Loaded: ${config.filename || 'configuration'}`;
+                    } else {
+                        this.statusText.textContent = 'Failed to load configuration';
+                    }
+                } catch (error) {
+                    console.error('Failed to load configuration:', error);
+                    this.statusText.textContent = 'Error loading configuration';
+                }
+            }
+
+            async saveConfiguration() {
+                try {
+                    const config = this.serializeConfiguration();
+                    const response = await fetch('/api/save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(config)
+                    });
+                    
+                    if (response.ok) {
+                        this.statusText.textContent = 'Configuration saved successfully';
+                    } else {
+                        this.statusText.textContent = 'Failed to save configuration';
+                    }
+                } catch (error) {
+                    console.error('Failed to save configuration:', error);
+                    this.statusText.textContent = 'Error saving configuration';
+                }
+            }
+
+            async saveAsConfiguration() {
+                const filename = prompt('Enter filename (without .yaml extension):');
+                if (!filename) return;
+
+                try {
+                    const config = this.serializeConfiguration();
+                    const response = await fetch('/api/save-as', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...config, filename: filename + '.yaml' })
+                    });
+                    
+                    if (response.ok) {
+                        this.statusText.textContent = `Saved as: ${filename}.yaml`;
+                    } else {
+                        this.statusText.textContent = 'Failed to save configuration';
+                    }
+                } catch (error) {
+                    console.error('Failed to save configuration:', error);
+                    this.statusText.textContent = 'Error saving configuration';
+                }
+            }
+
+            displayConfiguration(config) {
+                this.currentConfig = config;
+                this.clearCanvas();
+
+                const nodeEntries = Object.entries(config.data || {});
+                const nodesPerRow = 4;
+                const nodeSpacing = { x: 220, y: 180 };
+                const startPos = { x: 50, y: 50 };
+
+                nodeEntries.forEach(([nodeId, nodeData], index) => {
+                    const row = Math.floor(index / nodesPerRow);
+                    const col = index % nodesPerRow;
+                    const x = startPos.x + col * nodeSpacing.x;
+                    const y = startPos.y + row * nodeSpacing.y;
+
+                    this.createNode(nodeId, nodeData, x, y);
+                });
+
+                this.updateConnections();
+            }
+
+            createNode(nodeId, nodeData, x, y) {
+                const nodeElement = document.createElement('div');
+                nodeElement.className = 'node';
+                nodeElement.style.left = `${x}px`;
+                nodeElement.style.top = `${y}px`;
+                
+                const nodeType = nodeData.type || 'unknown';
+                nodeElement.classList.add(`node-type-${nodeType}`);
+
+                const icon = this.getNodeIcon(nodeType);
+                const properties = this.formatNodeProperties(nodeData);
+
+                nodeElement.innerHTML = `
+                    <div class="node-header">
+                        <div class="node-icon">${icon}</div>
+                        <div class="node-name">${nodeId}</div>
+                    </div>
+                    <div class="node-body">
+                        ${properties}
+                    </div>
+                `;
+
+                nodeElement.addEventListener('dblclick', () => this.editNode(nodeId));
+                nodeElement.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.selectNode(nodeElement);
+                });
+
+                this.canvas.appendChild(nodeElement);
+                this.nodes.set(nodeId, {
+                    element: nodeElement,
+                    data: { ...nodeData },
+                    position: { x, y }
+                });
+            }
+
+            getNodeIcon(nodeType) {
+                const icons = {
+                    'playlist': '♫',
+                    'output': '📤',
+                    'is_liked': '❤️',
+                    'is_disliked': '💔',
+                    'filter': '🔍',
+                    'limit': '📊',
+                    'shuffle': '🔀',
+                    'sort': '📶'
+                };
+                return icons[nodeType] || '📦';
+            }
+
+            formatNodeProperties(nodeData) {
+                const excludeKeys = ['input', 'inputs'];
+                const properties = Object.entries(nodeData)
+                    .filter(([key]) => !excludeKeys.includes(key))
+                    .slice(0, 4)
+                    .map(([key, value]) => {
+                        let displayValue = String(value);
+                        if (displayValue.length > 25) {
+                            displayValue = displayValue.substring(0, 22) + '...';
+                        }
+                        return `<div class="node-property"><strong>${key}:</strong> ${displayValue}</div>`;
+                    })
+                    .join('');
+                
+                return properties || '<div class="node-property">No properties</div>';
+            }
+
+            updateConnections() {
+                this.connectionsContainer.innerHTML = '';
+                this.connections = [];
+
+                for (const [nodeId, nodeInfo] of this.nodes) {
+                    const nodeData = nodeInfo.data;
+                    
+                    // Handle single input
+                    if (nodeData.input && this.nodes.has(nodeData.input)) {
+                        this.createConnection(nodeData.input, nodeId);
+                    }
+
+                    // Handle multiple inputs
+                    if (nodeData.inputs && Array.isArray(nodeData.inputs)) {
+                        nodeData.inputs.forEach(inputId => {
+                            if (inputId && this.nodes.has(inputId)) {
+                                this.createConnection(inputId, nodeId);
+                            }
+                        });
+                    }
+                }
+            }
+
+            createConnection(fromNodeId, toNodeId) {
+                const fromNode = this.nodes.get(fromNodeId);
+                const toNode = this.nodes.get(toNodeId);
+                
+                if (!fromNode || !toNode) return;
+
+                const fromRect = fromNode.element.getBoundingClientRect();
+                const toRect = toNode.element.getBoundingClientRect();
+                const canvasRect = this.canvas.getBoundingClientRect();
+
+                const fromX = fromRect.left - canvasRect.left + fromRect.width / 2;
+                const fromY = fromRect.top - canvasRect.top + fromRect.height / 2;
+                const toX = toRect.left - canvasRect.left + toRect.width / 2;
+                const toY = toRect.top - canvasRect.top + toRect.height / 2;
+
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                const controlPoint1X = fromX + (toX - fromX) * 0.5;
+                const controlPoint1Y = fromY;
+                const controlPoint2X = toX - (toX - fromX) * 0.5;
+                const controlPoint2Y = toY;
+
+                const pathData = `M ${fromX} ${fromY} C ${controlPoint1X} ${controlPoint1Y} ${controlPoint2X} ${controlPoint2Y} ${toX} ${toY}`;
+                
+                path.setAttribute("d", pathData);
+                path.setAttribute("class", "connection-line");
+
+                // Add arrow marker
+                const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+                const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+                marker.setAttribute("id", `arrow-${fromNodeId}-${toNodeId}`);
+                marker.setAttribute("markerWidth", "10");
+                marker.setAttribute("markerHeight", "10");
+                marker.setAttribute("refX", "8");
+                marker.setAttribute("refY", "3");
+                marker.setAttribute("orient", "auto");
+                marker.setAttribute("markerUnits", "strokeWidth");
+
+                const arrowPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                arrowPath.setAttribute("d", "M0,0 L0,6 L9,3 z");
+                arrowPath.setAttribute("class", "connection-arrow");
+
+                marker.appendChild(arrowPath);
+                defs.appendChild(marker);
+                this.connectionsContainer.appendChild(defs);
+
+                path.setAttribute("marker-end", `url(#arrow-${fromNodeId}-${toNodeId})`);
+                this.connectionsContainer.appendChild(path);
+
+                this.connections.push({ from: fromNodeId, to: toNodeId, element: path });
+            }
+
+            selectNode(nodeElement) {
+                // Remove previous selection
+                this.nodes.forEach(nodeInfo => {
+                    nodeInfo.element.classList.remove('selected');
+                });
+
+                // Select new node
+                nodeElement.classList.add('selected');
+                this.selectedNode = nodeElement;
+            }
+
+            editNode(nodeId) {
+                const nodeInfo = this.nodes.get(nodeId);
+                if (!nodeInfo) return;
+
+                this.modalTitle.textContent = `Edit Node: ${nodeId}`;
+                this.currentEditingNode = nodeId;
+                
+                // Generate form fields
+                this.modalForm.innerHTML = '';
+                
+                Object.entries(nodeInfo.data).forEach(([key, value]) => {
+                    if (key === 'input' || key === 'inputs') return; // Skip inputs
+
+                    const formGroup = document.createElement('div');
+                    formGroup.className = 'form-group';
+                    
+                    formGroup.innerHTML = `
+                        <label class="form-label">${key}:</label>
+                        <input class="form-input" name="${key}" value="${value || ''}" type="text">
+                    `;
+                    
+                    this.modalForm.appendChild(formGroup);
+                });
+
+                // Add new property fields
+                const separator = document.createElement('hr');
+                separator.style.margin = '20px 0';
+                this.modalForm.appendChild(separator);
+
+                const newPropGroup = document.createElement('div');
+                newPropGroup.innerHTML = `
+                    <div class="form-group">
+                        <label class="form-label">Add new property:</label>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Key:</label>
+                        <input class="form-input" id="newPropKey" type="text">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Value:</label>
+                        <input class="form-input" id="newPropValue" type="text">
+                    </div>
+                `;
+                this.modalForm.appendChild(newPropGroup);
+
+                this.editModal.classList.remove('hidden');
+            }
+
+            saveNodeChanges() {
+                const nodeInfo = this.nodes.get(this.currentEditingNode);
+                if (!nodeInfo) return;
+
+                const formData = new FormData();
+                const inputs = this.modalForm.querySelectorAll('input[name]');
+                
+                // Update existing properties
+                inputs.forEach(input => {
+                    const value = input.value.trim();
+                    if (value) {
+                        // Try to convert to appropriate type
+                        let convertedValue = value;
+                        if (value.toLowerCase() === 'true') convertedValue = true;
+                        else if (value.toLowerCase() === 'false') convertedValue = false;
+                        else if (/^\d+$/.test(value)) convertedValue = parseInt(value);
+                        else if (/^\d*\.\d+$/.test(value)) convertedValue = parseFloat(value);
+                        
+                        nodeInfo.data[input.name] = convertedValue;
+                    }
+                });
+
+                // Add new property if specified
+                const newKey = document.getElementById('newPropKey').value.trim();
+                const newValue = document.getElementById('newPropValue').value.trim();
+                if (newKey && newValue) {
+                    let convertedValue = newValue;
+                    if (newValue.toLowerCase() === 'true') convertedValue = true;
+                    else if (newValue.toLowerCase() === 'false') convertedValue = false;
+                    else if (/^\d+$/.test(newValue)) convertedValue = parseInt(newValue);
+                    else if (/^\d*\.\d+$/.test(newValue)) convertedValue = parseFloat(newValue);
+                    
+                    nodeInfo.data[newKey] = convertedValue;
+                }
+
+                // Update display
+                const properties = this.formatNodeProperties(nodeInfo.data);
+                const bodyElement = nodeInfo.element.querySelector('.node-body');
+                bodyElement.innerHTML = properties;
+
+                this.closeModal();
+                this.statusText.textContent = `Updated node: ${this.currentEditingNode}`;
+            }
+
+            closeModal() {
+                this.editModal.classList.add('hidden');
+                this.currentEditingNode = null;
+            }
+
+            addNewNode() {
+                const nodeId = prompt('Enter node ID:');
+                if (!nodeId || this.nodes.has(nodeId)) {
+                    if (nodeId) {
+                        alert('Node ID already exists!');
+                    }
+                    return;
+                }
+
+                const nodeData = {
+                    type: 'playlist',
+                    uri: 'spotify:playlist:YOUR_PLAYLIST_ID'
+                };
+
+                // Find position for new node
+                const existingNodes = Array.from(this.nodes.values());
+                const x = 50 + (existingNodes.length % 4) * 220;
+                const y = 50 + Math.floor(existingNodes.length / 4) * 180;
+
+                this.createNode(nodeId, nodeData, x, y);
+                this.updateConnections();
+                this.statusText.textContent = `Added new node: ${nodeId}`;
+            }
+
+            clearCanvas() {
+                this.canvas.innerHTML = '<svg id="connections" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></svg>';
+                this.connectionsContainer = document.getElementById('connections');
+                this.nodes.clear();
+                this.connections = [];
+            }
+
+            serializeConfiguration() {
+                const data = {};
+                this.nodes.forEach((nodeInfo, nodeId) => {
+                    data[nodeId] = { ...nodeInfo.data };
+                });
+                return { data };
+            }
+
+            handleMouseDown(e) {
+                const nodeElement = e.target.closest('.node');
+                if (nodeElement) {
+                    const rect = nodeElement.getBoundingClientRect();
+                    this.dragOffset = {
+                        x: e.clientX - rect.left,
+                        y: e.clientY - rect.top
+                    };
+                    this.isDragging = nodeElement;
+                    this.selectNode(nodeElement);
+                    e.preventDefault();
+                }
+            }
+
+            handleMouseMove(e) {
+                if (this.isDragging) {
+                    const x = e.clientX - this.dragOffset.x - this.canvas.getBoundingClientRect().left;
+                    const y = e.clientY - this.dragOffset.y - this.canvas.getBoundingClientRect().top;
+                    
+                    this.isDragging.style.left = `${x}px`;
+                    this.isDragging.style.top = `${y}px`;
+                    
+                    // Update stored position
+                    for (const [nodeId, nodeInfo] of this.nodes) {
+                        if (nodeInfo.element === this.isDragging) {
+                            nodeInfo.position = { x, y };
+                            break;
+                        }
+                    }
+                    
+                    this.updateConnections();
+                }
+            }
+
+            handleMouseUp(e) {
+                this.isDragging = false;
+            }
+        }
+
+        // Initialize the editor when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new ConfigurationEditor();
+        });
+    </script>
+</body>
+</html>
