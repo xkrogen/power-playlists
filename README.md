@@ -266,7 +266,7 @@ Power Playlists uses modern Python tooling with [uv](https://github.com/astral-s
 
 1. Install [Task](https://taskfile.dev/docs/installation) (task runner)
 2. Clone the repository 
-3. Run `task setup` to install all dependencies and set up the development environment
+3. Run `task install` to install all dependencies and set up the development environment
 4. Run `task --list` to see all available development tasks
 
 ### Development Tasks
@@ -275,7 +275,7 @@ The project uses Task to automate common development workflows:
 
 ```shell
 # Complete development setup
-> task setup
+> task install
 
 # Run all validation checks (tests, linting, formatting, type checking)
 > task check

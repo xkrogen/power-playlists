@@ -11,8 +11,19 @@ Power Playlists is a Python CLI tool for creating dynamic Spotify playlists usin
 ### Bootstrap and Setup Commands
 **PREFERRED**: Use Task for all development operations:
 
-1. **Install Task**: Follow instructions at https://taskfile.dev/docs/installation
-2. **Complete setup**: `task setup` - installs UV, dependencies, and creates required directories
+1. **Install Task**: 
+   ```shell
+   # macOS/Linux with Homebrew
+   > brew install go-task/tap/go-task
+   
+   # macOS/Linux with curl
+   > sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b ~/.local/bin
+   
+   # Windows with Scoop  
+   > scoop install task
+   ```
+   For other methods: https://taskfile.dev/docs/installation
+2. **Complete setup**: `task install` - installs UV, dependencies, and Python
 3. **List all tasks**: `task --list` - shows all available development tasks
 
 ### Build and Test Commands
@@ -35,7 +46,7 @@ Power Playlists is a Python CLI tool for creating dynamic Spotify playlists usin
 **CRITICAL**: Always perform these validation steps after making changes:
 
 ### Mandatory Pre-commit Validation
-**CRITICAL**: Always run `task check-all` before committing changes or the CI will fail.
+**CRITICAL**: Always run `task check` before committing changes or the CI will fail.
 
 Alternatively, you can run individual checks manually:
 1. `uv run ruff check .` - must pass (linting)
@@ -45,9 +56,9 @@ Alternatively, you can run individual checks manually:
 
 ### Application Functionality Testing
 After making changes to the core application logic, use Task commands for consistency:
-1. **Test CLI help**: `task app-help` - should show usage info
-2. **Test run command**: `task app-run-help` - should show run options
-3. **Test config parsing**: `task app-test-config` - should show validation error about missing inputs (this is expected behavior)
+1. **Test CLI help**: `task run -- --help` - should show usage info
+2. **Test run command**: `task run -- run --help` - should show run options
+3. **Test config parsing**: `task run -- run --userconf config.yaml` - should show validation error about missing inputs (this is expected behavior)
 4. **Verify error handling**: Check that configuration errors are caught gracefully
 5. **Note**: With a valid config file, the application will hang waiting for Spotify authentication - this is normal behavior and indicates successful config parsing
 
@@ -102,7 +113,7 @@ docs/CI_SETUP.md           # CI workflow documentation
 The CI runs on every push/PR to main branch and tests against Python 3.9-3.12:
 1. Install Task runner
 2. Install UV and Python
-3. Run all validation checks with `task ci` (equivalent to `task check-all`)
+3. Run all validation checks with `task check`
 
 The CI uses the same Task commands as local development for consistency.
 
@@ -139,7 +150,7 @@ The CI uses the same Task commands as local development for consistency.
 ### Quick Command Reference
 ```bash
 # Setup
-task setup                               # Complete setup (installs UV, deps, creates dirs)
+task install                             # Complete install (installs UV, deps, Python)
 task --list                              # Show all available tasks
 
 # Development  

@@ -29,9 +29,7 @@ jobs:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Install dependencies and build
-      run: |
-        task install
-        uv build
+      run: task build
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4

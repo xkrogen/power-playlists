@@ -27,12 +27,6 @@ tasks:
     generates:
       - .venv/**/*
 
-  setup:
-    desc: Complete development environment setup
-    deps: [install]
-    cmds:
-      - echo "Development environment setup complete!"
-
   # Testing task with CLI_ARGS support
   test:
     desc: Run tests (use -- to pass args, e.g., task test -- -v)
@@ -46,9 +40,21 @@ tasks:
   # Application runner with CLI_ARGS support
   run:
     desc: Run power-playlists application (use -- to pass args)
-    deps: [setup]
+    deps: [install]
     cmds:
       - uv run power-playlists {{.CLI_ARGS}}
+
+  # Build task for packaging
+  build:
+    desc: Build the package for distribution
+    deps: [install]
+    cmds:
+      - uv build
+    sources:
+      - src/**/*.py
+      - pyproject.toml
+    generates:
+      - dist/**/*
 
   # Documentation with full workflow
   docs:
