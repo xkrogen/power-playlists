@@ -11,8 +11,8 @@ from unittest.mock import patch
 
 import yaml
 
-from powerplaylists.gui_editor import WebConfigurationEditor, launch_gui_editor
-from powerplaylists.utils import AppConfig
+from power_playlists.gui_editor import WebConfigurationEditor, launch_gui_editor
+from power_playlists.utils import AppConfig
 
 
 class TestGuiEditor:
@@ -107,7 +107,7 @@ class TestGuiEditor:
     def test_gui_editor_module_import(self):
         """Test that the GUI editor module can be imported."""
         # This should work even without a display
-        import powerplaylists.gui_editor as gui_editor
+        import power_playlists.gui_editor as gui_editor
 
         assert hasattr(gui_editor, "launch_gui_editor")
         assert callable(gui_editor.launch_gui_editor)
