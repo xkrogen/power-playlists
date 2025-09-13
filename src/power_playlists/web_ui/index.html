@@ -276,6 +276,47 @@
             box-shadow: 0 0 0 2px rgba(0,122,204,0.2);
         }
 
+        .checkbox-list {
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            padding: 8px;
+            max-height: 120px;
+            overflow-y: auto;
+            background: white;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            padding: 4px 8px;
+            margin: 2px 0;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+        }
+
+        .checkbox-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            margin-right: 8px;
+            width: auto;
+        }
+
+        .checkbox-item label {
+            margin: 0;
+            font-weight: normal;
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .checkbox-list-empty {
+            color: #6b7280;
+            font-style: italic;
+            text-align: center;
+            padding: 12px;
+        }
+
         .form-actions {
             display: flex;
             gap: 12px;
@@ -923,9 +964,28 @@
                         break;
                         
                     case 'node_list':
-                        // For node lists, use a multi-line text area for now (could be improved with multi-select)
-                        const listValue = Array.isArray(currentValue) ? currentValue.join(', ') : currentValue || '';
-                        inputHtml = `<textarea class="form-input" name="${propName}" rows="2" placeholder="Enter node IDs separated by commas">${listValue}</textarea>`;
+                        // Create multi-select checkbox interface for node lists
+                        const nodeOptions = Array.from(this.nodes.keys()).filter(id => id !== nodeId);
+                        const currentValues = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
+                        
+                        if (nodeOptions.length === 0) {
+                            inputHtml = `<div class="checkbox-list">
+                                <div class="checkbox-list-empty">No other nodes available</div>
+                            </div>`;
+                        } else {
+                            const checkboxItems = nodeOptions.map(nodeOption => {
+                                const isChecked = currentValues.includes(nodeOption);
+                                const checkboxId = `${propName}_${nodeOption}`;
+                                return `<div class="checkbox-item">
+                                    <input type="checkbox" id="${checkboxId}" name="${propName}" value="${nodeOption}" ${isChecked ? 'checked' : ''}>
+                                    <label for="${checkboxId}">${nodeOption}</label>
+                                </div>`;
+                            }).join('');
+                            
+                            inputHtml = `<div class="checkbox-list" name="${propName}">
+                                ${checkboxItems}
+                            </div>`;
+                        }
                         break;
                         
                     default: // text
@@ -945,11 +1005,27 @@
                 const nodeInfo = this.nodes.get(this.currentEditingNode);
                 if (!nodeInfo) return;
 
+                // First, collect all checkbox lists for node_list properties
+                const checkboxLists = {};
+                this.modalForm.querySelectorAll('.checkbox-list').forEach(checkboxContainer => {
+                    const propertyName = checkboxContainer.getAttribute('name');
+                    if (propertyName) {
+                        const checkboxes = checkboxContainer.querySelectorAll('input[type="checkbox"]:checked');
+                        checkboxLists[propertyName] = Array.from(checkboxes).map(cb => cb.value);
+                    }
+                });
+
                 // Update properties from all form inputs
                 const inputs = this.modalForm.querySelectorAll('input[name], select[name], textarea[name]');
                 
                 inputs.forEach(input => {
                     const propName = input.name;
+                    
+                    // Skip checkboxes that are part of checkbox lists (handled above)
+                    if (input.type === 'checkbox' && input.closest('.checkbox-list')) {
+                        return;
+                    }
+                    
                     let value = input.value.trim();
                     
                     // Handle different input types
@@ -958,7 +1034,7 @@
                     } else if (input.type === 'number') {
                         value = value ? parseInt(value) : '';
                     } else if (input.tagName === 'TEXTAREA' && propName === 'inputs') {
-                        // Handle node lists
+                        // Handle legacy node lists (fallback for textarea)
                         if (value) {
                             value = value.split(',').map(s => s.trim()).filter(s => s);
                         } else {
@@ -969,6 +1045,15 @@
                     // Update the node data
                     if (value !== '') {
                         nodeInfo.data[propName] = value;
+                    } else if (nodeInfo.data.hasOwnProperty(propName)) {
+                        delete nodeInfo.data[propName];
+                    }
+                });
+                
+                // Apply checkbox list values
+                Object.entries(checkboxLists).forEach(([propName, values]) => {
+                    if (values.length > 0) {
+                        nodeInfo.data[propName] = values;
                     } else if (nodeInfo.data.hasOwnProperty(propName)) {
                         delete nodeInfo.data[propName];
                     }
