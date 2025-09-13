@@ -167,6 +167,32 @@
             fill: #6b7280;
         }
 
+        .node {
+            --node-color: #7f8c8d;
+        }
+
+        .node-header {
+            background: linear-gradient(135deg, var(--node-color) 0%, color-mix(in srgb, var(--node-color) 80%, #000) 100%);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px 6px 0 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .node-icon {
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
+            padding: 4px;
+            font-size: 16px;
+            line-height: 1;
+            min-width: 24px;
+            text-align: center;
+        }
+
         .node-type-playlist .node-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
@@ -299,6 +325,48 @@
         </div>
     </div>
 
+    <!-- Error Display Modal -->
+    <div class="modal hidden" id="errorModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Error</h2>
+            </div>
+            <div id="errorMessage" style="padding: 20px; color: #e74c3c; white-space: pre-wrap;"></div>
+            <div class="form-actions">
+                <button class="btn" id="errorOkBtn">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Node Modal -->
+    <div class="modal hidden" id="addNodeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Add New Node</h2>
+            </div>
+            <div style="padding: 20px;">
+                <div class="form-group">
+                    <label class="form-label">Node ID:</label>
+                    <input class="form-input" id="newNodeId" type="text" placeholder="Enter unique node ID">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Node Type:</label>
+                    <select class="form-input" id="newNodeType">
+                        <option value="">Select node type...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description:</label>
+                    <div id="nodeTypeDescription" style="font-size: 14px; color: #666; margin-top: 8px;"></div>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-secondary" id="addNodeCancelBtn">Cancel</button>
+                <button class="btn" id="addNodeConfirmBtn">Add Node</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         class ConfigurationEditor {
             constructor() {
@@ -309,10 +377,13 @@
                 this.isDragging = false;
                 this.canvasOffset = { x: 0, y: 0 };
                 this.currentConfig = null;
+                this.nodeSchemas = null;
 
                 this.initializeElements();
                 this.setupEventListeners();
-                this.loadInitialConfiguration();
+                this.loadNodeSchemas().then(() => {
+                    this.loadInitialConfiguration();
+                });
             }
 
             initializeElements() {
@@ -322,6 +393,9 @@
                 this.editModal = document.getElementById('editModal');
                 this.modalTitle = document.getElementById('modalTitle');
                 this.modalForm = document.getElementById('modalForm');
+                this.errorModal = document.getElementById('errorModal');
+                this.errorMessage = document.getElementById('errorMessage');
+                this.addNodeModal = document.getElementById('addNodeModal');
             }
 
             setupEventListeners() {
@@ -329,11 +403,17 @@
                 document.getElementById('loadBtn').addEventListener('click', () => this.loadConfiguration());
                 document.getElementById('saveBtn').addEventListener('click', () => this.saveConfiguration());
                 document.getElementById('saveAsBtn').addEventListener('click', () => this.saveAsConfiguration());
-                document.getElementById('addNodeBtn').addEventListener('click', () => this.addNewNode());
+                document.getElementById('addNodeBtn').addEventListener('click', () => this.showAddNodeModal());
 
                 // Modal buttons
                 document.getElementById('cancelBtn').addEventListener('click', () => this.closeModal());
                 document.getElementById('saveNodeBtn').addEventListener('click', () => this.saveNodeChanges());
+                document.getElementById('errorOkBtn').addEventListener('click', () => this.closeErrorModal());
+                document.getElementById('addNodeCancelBtn').addEventListener('click', () => this.closeAddNodeModal());
+                document.getElementById('addNodeConfirmBtn').addEventListener('click', () => this.confirmAddNode());
+
+                // Node type selection
+                document.getElementById('newNodeType').addEventListener('change', (e) => this.updateNodeTypeDescription(e.target.value));
 
                 // Canvas events
                 this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
@@ -342,6 +422,113 @@
 
                 // Prevent context menu
                 this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+            }
+
+            async loadNodeSchemas() {
+                try {
+                    const response = await fetch('/api/node-schema');
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.nodeSchemas = data.schemas;
+                        this.populateNodeTypeSelector();
+                    } else {
+                        console.error('Failed to load node schemas');
+                    }
+                } catch (error) {
+                    console.error('Error loading node schemas:', error);
+                }
+            }
+
+            populateNodeTypeSelector() {
+                const selector = document.getElementById('newNodeType');
+                selector.innerHTML = '<option value="">Select node type...</option>';
+                
+                if (this.nodeSchemas) {
+                    Object.entries(this.nodeSchemas).forEach(([type, schema]) => {
+                        const option = document.createElement('option');
+                        option.value = type;
+                        option.textContent = `${schema.icon} ${schema.name}`;
+                        selector.appendChild(option);
+                    });
+                }
+            }
+
+            updateNodeTypeDescription(nodeType) {
+                const descElement = document.getElementById('nodeTypeDescription');
+                if (nodeType && this.nodeSchemas && this.nodeSchemas[nodeType]) {
+                    descElement.textContent = this.nodeSchemas[nodeType].description;
+                } else {
+                    descElement.textContent = '';
+                }
+            }
+
+            showError(message) {
+                this.errorMessage.textContent = message;
+                this.errorModal.classList.remove('hidden');
+            }
+
+            closeErrorModal() {
+                this.errorModal.classList.add('hidden');
+            }
+
+            showAddNodeModal() {
+                document.getElementById('newNodeId').value = '';
+                document.getElementById('newNodeType').value = '';
+                this.updateNodeTypeDescription('');
+                this.addNodeModal.classList.remove('hidden');
+            }
+
+            closeAddNodeModal() {
+                this.addNodeModal.classList.add('hidden');
+            }
+
+            confirmAddNode() {
+                const nodeId = document.getElementById('newNodeId').value.trim();
+                const nodeType = document.getElementById('newNodeType').value;
+                
+                if (!nodeId) {
+                    this.showError('Please enter a node ID');
+                    return;
+                }
+                
+                if (!nodeType) {
+                    this.showError('Please select a node type');
+                    return;
+                }
+                
+                if (this.nodes.has(nodeId)) {
+                    this.showError('Node ID already exists!');
+                    return;
+                }
+
+                this.createNewNode(nodeId, nodeType);
+                this.closeAddNodeModal();
+            }
+
+            createNewNode(nodeId, nodeType) {
+                if (!this.nodeSchemas || !this.nodeSchemas[nodeType]) {
+                    this.showError('Invalid node type');
+                    return;
+                }
+
+                const schema = this.nodeSchemas[nodeType];
+                const nodeData = { type: nodeType };
+
+                // Set default values for properties
+                Object.entries(schema.properties).forEach(([prop, config]) => {
+                    if (config.default !== undefined) {
+                        nodeData[prop] = config.default;
+                    }
+                });
+
+                // Find position for new node
+                const existingNodes = Array.from(this.nodes.values());
+                const x = 50 + (existingNodes.length % 4) * 220;
+                const y = 50 + Math.floor(existingNodes.length / 4) * 180;
+
+                this.createNode(nodeId, nodeData, x, y);
+                this.updateConnections();
+                this.statusText.textContent = `Added new ${schema.name} node: ${nodeId}`;
             }
 
             async loadInitialConfiguration() {
@@ -388,10 +575,13 @@
                     if (response.ok) {
                         this.statusText.textContent = 'Configuration saved successfully';
                     } else {
+                        const errorData = await response.json();
+                        this.showError(errorData.error || 'Failed to save configuration');
                         this.statusText.textContent = 'Failed to save configuration';
                     }
                 } catch (error) {
                     console.error('Failed to save configuration:', error);
+                    this.showError('Error saving configuration: ' + error.message);
                     this.statusText.textContent = 'Error saving configuration';
                 }
             }
@@ -411,10 +601,13 @@
                     if (response.ok) {
                         this.statusText.textContent = `Saved as: ${filename}.yaml`;
                     } else {
+                        const errorData = await response.json();
+                        this.showError(errorData.error || 'Failed to save configuration');
                         this.statusText.textContent = 'Failed to save configuration';
                     }
                 } catch (error) {
                     console.error('Failed to save configuration:', error);
+                    this.showError('Error saving configuration: ' + error.message);
                     this.statusText.textContent = 'Error saving configuration';
                 }
             }
@@ -449,8 +642,14 @@
                 const nodeType = nodeData.type || 'unknown';
                 nodeElement.classList.add(`node-type-${nodeType}`);
 
-                const icon = this.getNodeIcon(nodeType);
-                const properties = this.formatNodeProperties(nodeData);
+                const schema = this.nodeSchemas && this.nodeSchemas[nodeType];
+                const icon = schema ? schema.icon : this.getNodeIcon(nodeType);
+                const color = schema ? schema.color : this.getNodeColor(nodeType);
+                
+                // Set node color
+                nodeElement.style.setProperty('--node-color', color);
+
+                const properties = this.formatNodeProperties(nodeData, schema);
 
                 nodeElement.innerHTML = `
                     <div class="node-header">
@@ -476,6 +675,21 @@
                 });
             }
 
+            getNodeColor(nodeType) {
+                const colors = {
+                    'playlist': '#8E44AD',
+                    'liked_tracks': '#E74C3C',
+                    'output': '#2ECC71',
+                    'combiner': '#F39C12',
+                    'limit': '#34495E',
+                    'sort': '#3498DB',
+                    'filter_eval': '#E67E22',
+                    'is_liked': '#E91E63',
+                    'dedup': '#95A5A6'
+                };
+                return colors[nodeType] || '#7f8c8d';
+            }
+
             getNodeIcon(nodeType) {
                 const icons = {
                     'playlist': '♫',
@@ -490,8 +704,8 @@
                 return icons[nodeType] || '📦';
             }
 
-            formatNodeProperties(nodeData) {
-                const excludeKeys = ['input', 'inputs'];
+            formatNodeProperties(nodeData, schema = null) {
+                const excludeKeys = ['input', 'inputs', 'type'];
                 const properties = Object.entries(nodeData)
                     .filter(([key]) => !excludeKeys.includes(key))
                     .slice(0, 4)
@@ -500,11 +714,21 @@
                         if (displayValue.length > 25) {
                             displayValue = displayValue.substring(0, 22) + '...';
                         }
-                        return `<div class="node-property"><strong>${key}:</strong> ${displayValue}</div>`;
+                        
+                        // Use schema description if available
+                        let keyDisplay = key;
+                        if (schema && schema.properties && schema.properties[key]) {
+                            const propSchema = schema.properties[key];
+                            if (propSchema.description) {
+                                keyDisplay = `${key}`;
+                            }
+                        }
+                        
+                        return `<div class="node-property"><strong>${keyDisplay}:</strong> ${displayValue}</div>`;
                     })
                     .join('');
                 
-                return properties || '<div class="node-property">No properties</div>';
+                return properties || '<div class="node-property">No additional properties</div>';
             }
 
             updateConnections() {
@@ -599,89 +823,169 @@
                 this.modalTitle.textContent = `Edit Node: ${nodeId}`;
                 this.currentEditingNode = nodeId;
                 
-                // Generate form fields
+                const nodeType = nodeInfo.data.type;
+                const schema = this.nodeSchemas && this.nodeSchemas[nodeType];
+                
+                // Generate form fields based on schema
                 this.modalForm.innerHTML = '';
                 
-                Object.entries(nodeInfo.data).forEach(([key, value]) => {
-                    if (key === 'input' || key === 'inputs') return; // Skip inputs
-
-                    const formGroup = document.createElement('div');
-                    formGroup.className = 'form-group';
-                    
-                    formGroup.innerHTML = `
-                        <label class="form-label">${key}:</label>
-                        <input class="form-input" name="${key}" value="${value || ''}" type="text">
+                if (schema) {
+                    // Add type field (read-only)
+                    const typeGroup = document.createElement('div');
+                    typeGroup.className = 'form-group';
+                    typeGroup.innerHTML = `
+                        <label class="form-label">Type:</label>
+                        <input class="form-input" value="${schema.icon} ${schema.name}" readonly style="background: #f5f5f5; color: #666;">
                     `;
-                    
-                    this.modalForm.appendChild(formGroup);
-                });
+                    this.modalForm.appendChild(typeGroup);
 
-                // Add new property fields
-                const separator = document.createElement('hr');
-                separator.style.margin = '20px 0';
-                this.modalForm.appendChild(separator);
+                    // Add schema-defined properties
+                    Object.entries(schema.properties).forEach(([propName, propConfig]) => {
+                        const currentValue = nodeInfo.data[propName] || '';
+                        const formGroup = this.createPropertyInput(propName, propConfig, currentValue, nodeId);
+                        this.modalForm.appendChild(formGroup);
+                    });
 
-                const newPropGroup = document.createElement('div');
-                newPropGroup.innerHTML = `
-                    <div class="form-group">
-                        <label class="form-label">Add new property:</label>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Key:</label>
-                        <input class="form-input" id="newPropKey" type="text">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Value:</label>
-                        <input class="form-input" id="newPropValue" type="text">
-                    </div>
-                `;
-                this.modalForm.appendChild(newPropGroup);
+                    // Add existing properties not in schema (for backwards compatibility)
+                    Object.entries(nodeInfo.data).forEach(([key, value]) => {
+                        if (key !== 'type' && !schema.properties[key] && key !== 'input' && key !== 'inputs') {
+                            const formGroup = document.createElement('div');
+                            formGroup.className = 'form-group';
+                            formGroup.innerHTML = `
+                                <label class="form-label">${key}: <small style="color: #e67e22;">(custom property)</small></label>
+                                <input class="form-input" name="${key}" value="${value || ''}" type="text">
+                            `;
+                            this.modalForm.appendChild(formGroup);
+                        }
+                    });
+                } else {
+                    // Fallback for unknown node types
+                    Object.entries(nodeInfo.data).forEach(([key, value]) => {
+                        if (key === 'input' || key === 'inputs') return;
+
+                        const formGroup = document.createElement('div');
+                        formGroup.className = 'form-group';
+                        
+                        const isReadonly = key === 'type' ? 'readonly style="background: #f5f5f5; color: #666;"' : '';
+                        formGroup.innerHTML = `
+                            <label class="form-label">${key}:</label>
+                            <input class="form-input" name="${key}" value="${value || ''}" type="text" ${isReadonly}>
+                        `;
+                        
+                        this.modalForm.appendChild(formGroup);
+                    });
+                }
 
                 this.editModal.classList.remove('hidden');
+            }
+
+            createPropertyInput(propName, propConfig, currentValue, nodeId) {
+                const formGroup = document.createElement('div');
+                formGroup.className = 'form-group';
+                
+                const isRequired = propConfig.required ? ' <span style="color: #e74c3c;">*</span>' : '';
+                const description = propConfig.description ? `<br><small style="color: #666;">${propConfig.description}</small>` : '';
+                
+                let inputHtml = '';
+                
+                switch (propConfig.type) {
+                    case 'boolean':
+                        const checked = currentValue === true || currentValue === 'true' ? 'checked' : '';
+                        inputHtml = `<input class="form-input" name="${propName}" type="checkbox" ${checked} style="width: auto;">`;
+                        break;
+                        
+                    case 'integer':
+                        inputHtml = `<input class="form-input" name="${propName}" value="${currentValue || ''}" type="number" step="1">`;
+                        break;
+                        
+                    case 'select':
+                        const options = propConfig.options || [];
+                        const optionsHtml = options.map(option => {
+                            const selected = option === currentValue ? 'selected' : '';
+                            return `<option value="${option}" ${selected}>${option}</option>`;
+                        }).join('');
+                        inputHtml = `<select class="form-input" name="${propName}">
+                            <option value="">Select ${propName}...</option>
+                            ${optionsHtml}
+                        </select>`;
+                        break;
+                        
+                    case 'node_reference':
+                        const nodeOptions = Array.from(this.nodes.keys()).filter(id => id !== nodeId);
+                        const nodeOptionsHtml = nodeOptions.map(nodeId => {
+                            const selected = nodeId === currentValue ? 'selected' : '';
+                            return `<option value="${nodeId}" ${selected}>${nodeId}</option>`;
+                        }).join('');
+                        inputHtml = `<select class="form-input" name="${propName}">
+                            <option value="">Select node...</option>
+                            ${nodeOptionsHtml}
+                        </select>`;
+                        break;
+                        
+                    case 'node_list':
+                        // For node lists, use a multi-line text area for now (could be improved with multi-select)
+                        const listValue = Array.isArray(currentValue) ? currentValue.join(', ') : currentValue || '';
+                        inputHtml = `<textarea class="form-input" name="${propName}" rows="2" placeholder="Enter node IDs separated by commas">${listValue}</textarea>`;
+                        break;
+                        
+                    default: // text
+                        inputHtml = `<input class="form-input" name="${propName}" value="${currentValue || ''}" type="text">`;
+                        break;
+                }
+                
+                formGroup.innerHTML = `
+                    <label class="form-label">${propName}${isRequired}${description}</label>
+                    ${inputHtml}
+                `;
+                
+                return formGroup;
             }
 
             saveNodeChanges() {
                 const nodeInfo = this.nodes.get(this.currentEditingNode);
                 if (!nodeInfo) return;
 
-                const formData = new FormData();
-                const inputs = this.modalForm.querySelectorAll('input[name]');
+                // Update properties from all form inputs
+                const inputs = this.modalForm.querySelectorAll('input[name], select[name], textarea[name]');
                 
-                // Update existing properties
                 inputs.forEach(input => {
-                    const value = input.value.trim();
-                    if (value) {
-                        // Try to convert to appropriate type
-                        let convertedValue = value;
-                        if (value.toLowerCase() === 'true') convertedValue = true;
-                        else if (value.toLowerCase() === 'false') convertedValue = false;
-                        else if (/^\d+$/.test(value)) convertedValue = parseInt(value);
-                        else if (/^\d*\.\d+$/.test(value)) convertedValue = parseFloat(value);
-                        
-                        nodeInfo.data[input.name] = convertedValue;
+                    const propName = input.name;
+                    let value = input.value.trim();
+                    
+                    // Handle different input types
+                    if (input.type === 'checkbox') {
+                        value = input.checked;
+                    } else if (input.type === 'number') {
+                        value = value ? parseInt(value) : '';
+                    } else if (input.tagName === 'TEXTAREA' && propName === 'inputs') {
+                        // Handle node lists
+                        if (value) {
+                            value = value.split(',').map(s => s.trim()).filter(s => s);
+                        } else {
+                            value = [];
+                        }
+                    }
+                    
+                    // Update the node data
+                    if (value !== '') {
+                        nodeInfo.data[propName] = value;
+                    } else if (nodeInfo.data.hasOwnProperty(propName)) {
+                        delete nodeInfo.data[propName];
                     }
                 });
 
-                // Add new property if specified
-                const newKey = document.getElementById('newPropKey').value.trim();
-                const newValue = document.getElementById('newPropValue').value.trim();
-                if (newKey && newValue) {
-                    let convertedValue = newValue;
-                    if (newValue.toLowerCase() === 'true') convertedValue = true;
-                    else if (newValue.toLowerCase() === 'false') convertedValue = false;
-                    else if (/^\d+$/.test(newValue)) convertedValue = parseInt(newValue);
-                    else if (/^\d*\.\d+$/.test(newValue)) convertedValue = parseFloat(newValue);
-                    
-                    nodeInfo.data[newKey] = convertedValue;
-                }
-
-                // Update display
-                const properties = this.formatNodeProperties(nodeInfo.data);
+                // Update the visual representation
+                const nodeType = nodeInfo.data.type;
+                const schema = this.nodeSchemas && this.nodeSchemas[nodeType];
+                const properties = this.formatNodeProperties(nodeInfo.data, schema);
                 const bodyElement = nodeInfo.element.querySelector('.node-body');
                 bodyElement.innerHTML = properties;
 
                 this.closeModal();
                 this.statusText.textContent = `Updated node: ${this.currentEditingNode}`;
+                
+                // Update connections in case inputs changed
+                this.updateConnections();
             }
 
             closeModal() {
@@ -689,29 +993,7 @@
                 this.currentEditingNode = null;
             }
 
-            addNewNode() {
-                const nodeId = prompt('Enter node ID:');
-                if (!nodeId || this.nodes.has(nodeId)) {
-                    if (nodeId) {
-                        alert('Node ID already exists!');
-                    }
-                    return;
-                }
-
-                const nodeData = {
-                    type: 'playlist',
-                    uri: 'spotify:playlist:YOUR_PLAYLIST_ID'
-                };
-
-                // Find position for new node
-                const existingNodes = Array.from(this.nodes.values());
-                const x = 50 + (existingNodes.length % 4) * 220;
-                const y = 50 + Math.floor(existingNodes.length / 4) * 180;
-
-                this.createNode(nodeId, nodeData, x, y);
-                this.updateConnections();
-                this.statusText.textContent = `Added new node: ${nodeId}`;
-            }
+            // Remove old addNewNode - replaced by showAddNodeModal
 
             clearCanvas() {
                 this.canvas.innerHTML = '<svg id="connections" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></svg>';
