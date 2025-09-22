@@ -117,7 +117,7 @@ and going to `Share > Copy Spotify URI`.
 
 ## Graphical Editor
 
-Power Playlists includes a modern web-based graphical editor that makes creating and editing playlist configurations much easier than manually writing YAML files. The editor provides a visual, node-based interface with drag-and-drop functionality.
+Power Playlists includes a web-based graphical editor suitable for creating and modifying simple configuration files without needing to manually edit YAML. The editor provides a visual, node-based interface with drag-and-drop functionality.
 
 ### Launching the Editor
 
@@ -136,18 +136,6 @@ Power Playlists includes a modern web-based graphical editor that makes creating
 > power-playlists edit --appconf ~/my-app-config.yaml
 ```
 
-### Features
-
-The graphical editor provides:
-
-- **Modern web interface** - Opens automatically in your default browser with a clean, professional design
-- **Visual node editor** - Color-coded nodes with intuitive icons (♫ for playlists, ❤️ for filters, 📤 for outputs)
-- **Drag & drop** - Easily reposition nodes to organize your playlist flow
-- **Curved connection lines** - Visual connections show dependencies between nodes
-- **Smart property editing** - Structured forms with dropdowns, checkboxes, and validation
-- **Real-time validation** - Prevents saving invalid configurations with detailed error messages
-- **Automatic discovery** - Finds existing configurations and provides a selector when multiple exist
-
 ### Using the Editor
 
 1. **Adding nodes**: Click "Add Node" and select the type of node you want (playlist, filter, combiner, etc.)
@@ -157,19 +145,13 @@ The graphical editor provides:
 
 ### Node Types Available
 
-The editor supports all Power Playlists node types:
+The editor supports all Power Playlists node types, except for dynamic template nodes which must be configured manually in YAML:
 - **Playlist nodes** (♫) - Input from existing Spotify playlists
 - **Filter nodes** (🔍) - Filter by liked status, time added, release date, or custom expressions
 - **Combiner nodes** (➕) - Combine multiple inputs into one
 - **Sort nodes** (🔀) - Sort by time added, name, artist, album, or release date  
 - **Limit nodes** (🔢) - Limit to a specific number of tracks
 - **Output nodes** (📤) - Save results to Spotify playlists
-
-The graphical editor is especially useful for:
-- **Beginners** getting started with Power Playlists
-- **Complex workflows** with many interconnected nodes
-- **Visual learners** who prefer drag-and-drop to YAML editing
-- **Quick iterations** when experimenting with different configurations
 
 You can always switch between the graphical editor and manual YAML editing - both work with the same configuration files.
 

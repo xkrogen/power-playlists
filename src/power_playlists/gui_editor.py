@@ -34,10 +34,12 @@ def launch_gui_editor(app_conf: AppConfig, userconf_path: str | None = None):
 
 class ConfigurationRequestHandler(BaseHTTPRequestHandler):
     """HTTP request handler for the configuration editor web interface."""
+    
+    # Class variables to store configuration
+    app_conf: AppConfig = None
+    userconf_path: str | None = None
 
-    def __init__(self, app_conf: AppConfig, userconf_path: str | None, *args, **kwargs):
-        self.app_conf = app_conf
-        self.userconf_path = userconf_path
+    def __init__(self, *args, **kwargs):
         self.current_config = None
         super().__init__(*args, **kwargs)
 
@@ -516,12 +518,12 @@ class WebConfigurationEditor:
         # Find an available port
         self.port = self._find_available_port()
 
-        # Create server with partial application to pass parameters
-        def handler(*args, **kwargs):
-            return ConfigurationRequestHandler(self.app_conf, self.userconf_path, *args, **kwargs)
+        # Set class variables for the handler
+        ConfigurationRequestHandler.app_conf = self.app_conf
+        ConfigurationRequestHandler.userconf_path = self.userconf_path
 
         try:
-            self.httpd = HTTPServer(("localhost", self.port), handler)
+            self.httpd = HTTPServer(("localhost", self.port), ConfigurationRequestHandler)
             print(f"Starting Power Playlists Configuration Editor on http://localhost:{self.port}")
 
             # Open browser in a separate thread
