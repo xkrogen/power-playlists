@@ -34,7 +34,7 @@ def launch_gui_editor(app_conf: AppConfig, userconf_path: str | None = None):
 
 class ConfigurationRequestHandler(BaseHTTPRequestHandler):
     """HTTP request handler for the configuration editor web interface."""
-    
+
     # Class variables to store configuration
     app_conf: AppConfig = None
     userconf_path: str | None = None
