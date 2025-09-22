@@ -965,15 +965,15 @@
                         
                     case 'node_list':
                         // Create multi-select checkbox interface for node lists
-                        const nodeOptions = Array.from(this.nodes.keys()).filter(id => id !== nodeId);
+                        const availableNodes = Array.from(this.nodes.keys()).filter(id => id !== nodeId);
                         const currentValues = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
                         
-                        if (nodeOptions.length === 0) {
+                        if (availableNodes.length === 0) {
                             inputHtml = `<div class="checkbox-list">
                                 <div class="checkbox-list-empty">No other nodes available</div>
                             </div>`;
                         } else {
-                            const checkboxItems = nodeOptions.map(nodeOption => {
+                            const checkboxItems = availableNodes.map(nodeOption => {
                                 const isChecked = currentValues.includes(nodeOption);
                                 const checkboxId = `${propName}_${nodeOption}`;
                                 return `<div class="checkbox-item">
