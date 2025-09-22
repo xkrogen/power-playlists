@@ -36,7 +36,7 @@ class ConfigurationRequestHandler(BaseHTTPRequestHandler):
     """HTTP request handler for the configuration editor web interface."""
 
     # Class variables to store configuration
-    app_conf: AppConfig = None
+    app_conf: AppConfig | None = None
     userconf_path: str | None = None
 
     def __init__(self, *args, **kwargs):
