@@ -474,6 +474,24 @@
             color: #856404;
         }
 
+        /* Mini-graph styling */
+        .mini-graph-container {
+            background: #f8f9fa !important;
+            border: 1px solid #dee2e6 !important;
+            border-radius: 4px !important;
+            margin: 2px !important;
+            padding: 4px !important;
+        }
+
+        .mini-graph-content svg {
+            pointer-events: none;
+        }
+
+        /* Dynamic template nodes need more width */
+        .node.node-type-dynamic_template {
+            min-width: 340px;
+        }
+
         .hidden {
             display: none;
         }
@@ -984,36 +1002,175 @@
                 const instances = nodeData.instances || [];
                 const templateNodes = nodeData.template || {};
                 
-                // Create mini-graphs for each instance
-                const miniGraphs = instances.slice(0, 3).map((instance, index) => {
+                // Create detailed mini-graphs for each instance
+                const miniGraphs = instances.slice(0, 2).map((instance, index) => {
                     const instanceName = this.getInstanceDisplayName(instance);
+                    const miniGraphContent = this.createMiniGraph(templateNodes, instance);
+                    
                     return `
-                        <div class="mini-graph" style="display: inline-block; margin: 2px; padding: 4px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 3px; font-size: 10px;">
-                            <div style="font-weight: bold; margin-bottom: 2px;">${instanceName}</div>
-                            <div style="font-size: 8px; color: #666;">${Object.keys(templateNodes).length} nodes</div>
+                        <div class="mini-graph-container" style="display: inline-block; margin: 4px; padding: 6px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; vertical-align: top; width: 140px;">
+                            <div style="font-weight: bold; margin-bottom: 4px; font-size: 11px; text-align: center; color: #495057;">${instanceName}</div>
+                            <div class="mini-graph-content" style="position: relative; height: 60px; overflow: hidden;">
+                                ${miniGraphContent}
+                            </div>
                         </div>
                     `;
                 }).join('');
                 
-                const moreInstances = instances.length > 3 ? `<div style="font-size: 10px; color: #666; margin-top: 4px;">+${instances.length - 3} more...</div>` : '';
+                const moreInstances = instances.length > 2 ? `<div style="font-size: 10px; color: #666; margin-top: 4px; text-align: center;">+${instances.length - 2} more instances...</div>` : '';
                 
                 return `
                     <div class="node-header">
                         <div class="node-icon">${icon}</div>
                         <div class="node-name">${nodeId}</div>
                     </div>
-                    <div class="node-body">
+                    <div class="node-body" style="width: 320px;">
                         <div class="node-property"><strong>Template:</strong> ${Object.keys(templateNodes).length} nodes</div>
                         <div class="node-property"><strong>Instances:</strong> ${instances.length}</div>
-                        <div style="margin-top: 8px;">
+                        <div style="margin-top: 8px; text-align: center;">
                             ${miniGraphs}
                             ${moreInstances}
                         </div>
-                        <div style="margin-top: 8px; font-size: 11px; color: #007acc; font-style: italic;">
+                        <div style="margin-top: 8px; font-size: 11px; color: #007acc; font-style: italic; text-align: center;">
                             Double-click to edit template
                         </div>
                     </div>
                 `;
+            }
+
+            createMiniGraph(templateNodes, instance) {
+                const nodeEntries = Object.entries(templateNodes);
+                if (nodeEntries.length === 0) return '<div style="color: #666; font-size: 10px;">No nodes</div>';
+                
+                let miniGraphSvg = '<svg width="130" height="55" style="position: absolute; top: 0; left: 0;">';
+                let miniGraphNodes = '';
+                
+                // Calculate positions for mini nodes
+                const nodeWidth = 20;
+                const nodeHeight = 12;
+                const spacing = 25;
+                let x = 5;
+                let y = 5;
+                
+                const positions = {};
+                
+                nodeEntries.forEach(([templateNodeId, templateNodeData], index) => {
+                    // Replace template variables with instance values
+                    let displayNodeId = templateNodeId;
+                    Object.entries(instance).forEach(([variable, value]) => {
+                        const placeholder = `{${variable}}`;
+                        displayNodeId = displayNodeId.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), String(value));
+                    });
+                    
+                    // Truncate long names
+                    displayNodeId = displayNodeId.length > 8 ? displayNodeId.substring(0, 8) + '...' : displayNodeId;
+                    
+                    positions[templateNodeId] = { x, y };
+                    
+                    // Get node color based on type
+                    const nodeType = templateNodeData.type || 'unknown';
+                    const nodeColor = this.getMiniNodeColor(nodeType);
+                    
+                    // Create mini node
+                    miniGraphNodes += `
+                        <rect x="${x}" y="${y}" width="${nodeWidth}" height="${nodeHeight}" 
+                              fill="${nodeColor}" stroke="#666" stroke-width="0.5" rx="2"/>
+                        <text x="${x + nodeWidth/2}" y="${y + nodeHeight/2 + 2}" 
+                              text-anchor="middle" font-size="6" fill="white" font-weight="bold">
+                              ${this.getMiniNodeIcon(nodeType)}
+                        </text>
+                    `;
+                    
+                    // Position for next node
+                    x += spacing;
+                    if (x > 100) {
+                        x = 5;
+                        y += 18;
+                    }
+                });
+                
+                // Draw connections between mini nodes
+                let connections = '';
+                nodeEntries.forEach(([templateNodeId, templateNodeData]) => {
+                    const fromPos = positions[templateNodeId];
+                    if (!fromPos) return;
+                    
+                    // Check for input connections
+                    let inputId = templateNodeData.input;
+                    if (inputId && positions[inputId]) {
+                        const toPos = positions[inputId];
+                        connections += `
+                            <line x1="${toPos.x + nodeWidth/2}" y1="${toPos.y + nodeHeight}" 
+                                  x2="${fromPos.x + nodeWidth/2}" y2="${fromPos.y}" 
+                                  stroke="#666" stroke-width="1" marker-end="url(#mini-arrow)"/>
+                        `;
+                    }
+                    
+                    // Check for multiple inputs
+                    if (templateNodeData.inputs && Array.isArray(templateNodeData.inputs)) {
+                        templateNodeData.inputs.forEach(inputId => {
+                            if (inputId && positions[inputId]) {
+                                const toPos = positions[inputId];
+                                connections += `
+                                    <line x1="${toPos.x + nodeWidth/2}" y1="${toPos.y + nodeHeight}" 
+                                          x2="${fromPos.x + nodeWidth/2}" y2="${fromPos.y}" 
+                                          stroke="#666" stroke-width="1" marker-end="url(#mini-arrow)"/>
+                                `;
+                            }
+                        });
+                    }
+                });
+                
+                // Add arrow marker definition
+                const arrowMarker = `
+                    <defs>
+                        <marker id="mini-arrow" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto" markerUnits="strokeWidth">
+                            <path d="M0,0 L0,4 L4,2 z" fill="#666"/>
+                        </marker>
+                    </defs>
+                `;
+                
+                miniGraphSvg += arrowMarker + connections + miniGraphNodes + '</svg>';
+                
+                return miniGraphSvg;
+            }
+
+            getMiniNodeColor(nodeType) {
+                const colors = {
+                    'playlist': '#8E44AD',
+                    'liked_tracks': '#E74C3C',
+                    'all_tracks': '#9B59B6',
+                    'output': '#2ECC71',
+                    'combiner': '#F39C12',
+                    'limit': '#34495E',
+                    'sort': '#3498DB',
+                    'filter_eval': '#E67E22',
+                    'filter_time_added': '#16A085',
+                    'filter_release_date': '#8E44AD',
+                    'is_liked': '#E91E63',
+                    'dedup': '#95A5A6',
+                    'dynamic_template': '#17A2B8'
+                };
+                return colors[nodeType] || '#7f8c8d';
+            }
+
+            getMiniNodeIcon(nodeType) {
+                const icons = {
+                    'playlist': '♫',
+                    'liked_tracks': '❤',
+                    'all_tracks': '🎵',
+                    'output': '📤',
+                    'combiner': '➕',
+                    'limit': '🔢',
+                    'sort': '🔀',
+                    'filter_eval': '🔍',
+                    'filter_time_added': '⏰',
+                    'filter_release_date': '📅',
+                    'is_liked': '💖',
+                    'dedup': '🎯',
+                    'dynamic_template': '🔄'
+                };
+                return icons[nodeType] || '?';
             }
 
             getInstanceDisplayName(instance) {
@@ -1365,14 +1522,13 @@
             async enterTemplateView(nodeId) {
                 try {
                     this.currentTemplateNodeId = nodeId;
-                    const configData = this.getCurrentConfigData();
                     
                     const response = await fetch('/api/template/enter', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
                             nodeId: nodeId,
-                            configData: configData.data 
+                            configData: this.currentConfig.data || this.currentConfig
                         })
                     });
 
@@ -1571,7 +1727,8 @@
 
             addTemplateInstance() {
                 // Add a new empty instance
-                const nodeData = this.currentConfig[this.currentTemplateNodeId];
+                const configData = this.currentConfig.data || this.currentConfig;
+                const nodeData = configData[this.currentTemplateNodeId];
                 if (!nodeData.instances) nodeData.instances = [];
                 
                 // Create new instance with empty values for all variables
@@ -1590,7 +1747,8 @@
             }
 
             removeTemplateInstance(index) {
-                const nodeData = this.currentConfig[this.currentTemplateNodeId];
+                const configData = this.currentConfig.data || this.currentConfig;
+                const nodeData = configData[this.currentTemplateNodeId];
                 if (nodeData.instances && nodeData.instances.length > 1) {
                     nodeData.instances.splice(index, 1);
                     this.enterTemplateView(this.currentTemplateNodeId);
@@ -1598,7 +1756,8 @@
             }
 
             updateInstanceVariable(instanceIndex, variable, value) {
-                const nodeData = this.currentConfig[this.currentTemplateNodeId];
+                const configData = this.currentConfig.data || this.currentConfig;
+                const nodeData = configData[this.currentTemplateNodeId];
                 if (nodeData.instances && nodeData.instances[instanceIndex]) {
                     nodeData.instances[instanceIndex][variable] = value;
                 }
