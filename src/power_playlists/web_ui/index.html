@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Power Playlists Configuration Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            overflow: hidden;
+        }
+
+        .toolbar {
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 12px 20px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .btn {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #005a9e;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+
+        .status-bar {
+            background: #f8f9fa;
+            border-top: 1px solid #e0e0e0;
+            padding: 8px 20px;
+            font-size: 12px;
+            color: #6c757d;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 100vw;
+            height: calc(100vh - 120px);
+            overflow: hidden;
+            background: #fafafa;
+        }
+
+        .canvas {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+
+        .canvas.dragging {
+            cursor: grabbing;
+        }
+
+        .node {
+            position: absolute;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            min-width: 180px;
+            padding: 0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        .node:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transform: translateY(-1px);
+        }
+
+        .node.selected {
+            border-color: #007acc;
+            box-shadow: 0 0 0 2px rgba(0,122,204,0.2);
+        }
+
+        .node-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 7px 7px 0 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .node-icon {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .node-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .node-body {
+            padding: 12px 16px;
+            background: white;
+            border-radius: 0 0 7px 7px;
+        }
+
+        .node-property {
+            font-size: 12px;
+            color: #374151;
+            margin-bottom: 4px;
+        }
+
+        .node-property:last-child {
+            margin-bottom: 0;
+        }
+
+        .node-property strong {
+            color: #1f2937;
+        }
+
+        .connection {
+            position: absolute;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .connection-line {
+            stroke: #6b7280;
+            stroke-width: 2;
+            fill: none;
+            stroke-dasharray: 5, 5;
+        }
+
+        .connection-arrow {
+            fill: #6b7280;
+        }
+
+        .node {
+            --node-color: #7f8c8d;
+        }
+
+        .node-header {
+            background: linear-gradient(135deg, var(--node-color) 0%, color-mix(in srgb, var(--node-color) 80%, #000) 100%);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px 6px 0 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .node-icon {
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
+            padding: 4px;
+            font-size: 16px;
+            line-height: 1;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        .node-type-playlist .node-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .node-type-playlist .node-icon {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .node-type-filter .node-header {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .node-type-filter .node-icon {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .node-type-output .node-header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .node-type-output .node-icon {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #007acc;
+            box-shadow: 0 0 0 2px rgba(0,122,204,0.2);
+        }
+
+        .checkbox-list {
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            padding: 8px;
+            max-height: 120px;
+            overflow-y: auto;
+            background: white;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            padding: 4px 8px;
+            margin: 2px 0;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+        }
+
+        .checkbox-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            margin-right: 8px;
+            width: auto;
+        }
+
+        .checkbox-item label {
+            margin: 0;
+            font-weight: normal;
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .checkbox-list-empty {
+            color: #6b7280;
+            font-style: italic;
+            text-align: center;
+            padding: 12px;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button class="btn" id="loadBtn">Load</button>
+        <button class="btn" id="saveBtn">Save</button>
+        <button class="btn" id="saveAsBtn">Save As</button>
+        <div style="margin-left: auto; display: flex; gap: 12px;">
+            <button class="btn btn-secondary" id="addNodeBtn">Add Node</button>
+        </div>
+    </div>
+
+    <div class="canvas-container">
+        <div class="canvas" id="canvas">
+            <svg id="connections" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+            </svg>
+        </div>
+    </div>
+
+    <div class="status-bar">
+        <span id="statusText">Ready - Configuration loaded automatically</span>
+    </div>
+
+    <!-- Node Edit Modal -->
+    <div class="modal hidden" id="editModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">Edit Node</h2>
+            </div>
+            <div id="modalForm">
+                <!-- Form fields will be generated here -->
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
+                <button class="btn" id="saveNodeBtn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Display Modal -->
+    <div class="modal hidden" id="errorModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Error</h2>
+            </div>
+            <div id="errorMessage" style="padding: 20px; color: #e74c3c; white-space: pre-wrap;"></div>
+            <div class="form-actions">
+                <button class="btn" id="errorOkBtn">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Node Modal -->
+    <div class="modal hidden" id="addNodeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Add New Node</h2>
+            </div>
+            <div style="padding: 20px;">
+                <div class="form-group">
+                    <label class="form-label">Node ID:</label>
+                    <input class="form-input" id="newNodeId" type="text" placeholder="Enter unique node ID">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Node Type:</label>
+                    <select class="form-input" id="newNodeType">
+                        <option value="">Select node type...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description:</label>
+                    <div id="nodeTypeDescription" style="font-size: 14px; color: #666; margin-top: 8px;"></div>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-secondary" id="addNodeCancelBtn">Cancel</button>
+                <button class="btn" id="addNodeConfirmBtn">Add Node</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class ConfigurationEditor {
+            constructor() {
+                this.nodes = new Map();
+                this.connections = [];
+                this.selectedNode = null;
+                this.dragOffset = { x: 0, y: 0 };
+                this.isDragging = false;
+                this.canvasOffset = { x: 0, y: 0 };
+                this.currentConfig = null;
+                this.nodeSchemas = null;
+
+                this.initializeElements();
+                this.setupEventListeners();
+                this.loadNodeSchemas().then(() => {
+                    this.loadInitialConfiguration();
+                });
+            }
+
+            initializeElements() {
+                this.canvas = document.getElementById('canvas');
+                this.connectionsContainer = document.getElementById('connections');
+                this.statusText = document.getElementById('statusText');
+                this.editModal = document.getElementById('editModal');
+                this.modalTitle = document.getElementById('modalTitle');
+                this.modalForm = document.getElementById('modalForm');
+                this.errorModal = document.getElementById('errorModal');
+                this.errorMessage = document.getElementById('errorMessage');
+                this.addNodeModal = document.getElementById('addNodeModal');
+            }
+
+            setupEventListeners() {
+                // Toolbar buttons
+                document.getElementById('loadBtn').addEventListener('click', () => this.loadConfiguration());
+                document.getElementById('saveBtn').addEventListener('click', () => this.saveConfiguration());
+                document.getElementById('saveAsBtn').addEventListener('click', () => this.saveAsConfiguration());
+                document.getElementById('addNodeBtn').addEventListener('click', () => this.showAddNodeModal());
+
+                // Modal buttons
+                document.getElementById('cancelBtn').addEventListener('click', () => this.closeModal());
+                document.getElementById('saveNodeBtn').addEventListener('click', () => this.saveNodeChanges());
+                document.getElementById('errorOkBtn').addEventListener('click', () => this.closeErrorModal());
+                document.getElementById('addNodeCancelBtn').addEventListener('click', () => this.closeAddNodeModal());
+                document.getElementById('addNodeConfirmBtn').addEventListener('click', () => this.confirmAddNode());
+
+                // Node type selection
+                document.getElementById('newNodeType').addEventListener('change', (e) => this.updateNodeTypeDescription(e.target.value));
+
+                // Canvas events
+                this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                document.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+
+                // Prevent context menu
+                this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+            }
+
+            async loadNodeSchemas() {
+                try {
+                    const response = await fetch('/api/node-schema');
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.nodeSchemas = data.schemas;
+                        this.populateNodeTypeSelector();
+                    } else {
+                        console.error('Failed to load node schemas');
+                    }
+                } catch (error) {
+                    console.error('Error loading node schemas:', error);
+                }
+            }
+
+            populateNodeTypeSelector() {
+                const selector = document.getElementById('newNodeType');
+                selector.innerHTML = '<option value="">Select node type...</option>';
+                
+                if (this.nodeSchemas) {
+                    Object.entries(this.nodeSchemas).forEach(([type, schema]) => {
+                        const option = document.createElement('option');
+                        option.value = type;
+                        option.textContent = `${schema.icon} ${schema.name}`;
+                        selector.appendChild(option);
+                    });
+                }
+            }
+
+            updateNodeTypeDescription(nodeType) {
+                const descElement = document.getElementById('nodeTypeDescription');
+                if (nodeType && this.nodeSchemas && this.nodeSchemas[nodeType]) {
+                    descElement.textContent = this.nodeSchemas[nodeType].description;
+                } else {
+                    descElement.textContent = '';
+                }
+            }
+
+            showError(message) {
+                this.errorMessage.textContent = message;
+                this.errorModal.classList.remove('hidden');
+            }
+
+            closeErrorModal() {
+                this.errorModal.classList.add('hidden');
+            }
+
+            showAddNodeModal() {
+                document.getElementById('newNodeId').value = '';
+                document.getElementById('newNodeType').value = '';
+                this.updateNodeTypeDescription('');
+                this.addNodeModal.classList.remove('hidden');
+            }
+
+            closeAddNodeModal() {
+                this.addNodeModal.classList.add('hidden');
+            }
+
+            confirmAddNode() {
+                const nodeId = document.getElementById('newNodeId').value.trim();
+                const nodeType = document.getElementById('newNodeType').value;
+                
+                if (!nodeId) {
+                    this.showError('Please enter a node ID');
+                    return;
+                }
+                
+                if (!nodeType) {
+                    this.showError('Please select a node type');
+                    return;
+                }
+                
+                if (this.nodes.has(nodeId)) {
+                    this.showError('Node ID already exists!');
+                    return;
+                }
+
+                this.createNewNode(nodeId, nodeType);
+                this.closeAddNodeModal();
+            }
+
+            createNewNode(nodeId, nodeType) {
+                if (!this.nodeSchemas || !this.nodeSchemas[nodeType]) {
+                    this.showError('Invalid node type');
+                    return;
+                }
+
+                const schema = this.nodeSchemas[nodeType];
+                const nodeData = { type: nodeType };
+
+                // Set default values for properties
+                Object.entries(schema.properties).forEach(([prop, config]) => {
+                    if (config.default !== undefined) {
+                        nodeData[prop] = config.default;
+                    }
+                });
+
+                // Find position for new node
+                const existingNodes = Array.from(this.nodes.values());
+                const x = 50 + (existingNodes.length % 4) * 220;
+                const y = 50 + Math.floor(existingNodes.length / 4) * 180;
+
+                this.createNode(nodeId, nodeData, x, y);
+                this.updateConnections();
+                this.statusText.textContent = `Added new ${schema.name} node: ${nodeId}`;
+            }
+
+            async loadInitialConfiguration() {
+                try {
+                    const response = await fetch('/api/load');
+                    if (response.ok) {
+                        const config = await response.json();
+                        this.displayConfiguration(config);
+                        this.statusText.textContent = `Loaded: ${config.filename || 'configuration'}`;
+                    } else {
+                        this.statusText.textContent = 'No configuration loaded - use Load button';
+                    }
+                } catch (error) {
+                    console.error('Failed to load initial configuration:', error);
+                    this.statusText.textContent = 'Failed to load initial configuration';
+                }
+            }
+
+            async loadConfiguration() {
+                try {
+                    const response = await fetch('/api/load');
+                    if (response.ok) {
+                        const config = await response.json();
+                        this.displayConfiguration(config);
+                        this.statusText.textContent = `Loaded: ${config.filename || 'configuration'}`;
+                    } else {
+                        this.statusText.textContent = 'Failed to load configuration';
+                    }
+                } catch (error) {
+                    console.error('Failed to load configuration:', error);
+                    this.statusText.textContent = 'Error loading configuration';
+                }
+            }
+
+            async saveConfiguration() {
+                try {
+                    const config = this.serializeConfiguration();
+                    const response = await fetch('/api/save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(config)
+                    });
+                    
+                    if (response.ok) {
+                        this.statusText.textContent = 'Configuration saved successfully';
+                    } else {
+                        const errorData = await response.json();
+                        this.showError(errorData.error || 'Failed to save configuration');
+                        this.statusText.textContent = 'Failed to save configuration';
+                    }
+                } catch (error) {
+                    console.error('Failed to save configuration:', error);
+                    this.showError('Error saving configuration: ' + error.message);
+                    this.statusText.textContent = 'Error saving configuration';
+                }
+            }
+
+            async saveAsConfiguration() {
+                const filename = prompt('Enter filename (without .yaml extension):');
+                if (!filename) return;
+
+                try {
+                    const config = this.serializeConfiguration();
+                    const response = await fetch('/api/save-as', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...config, filename: filename + '.yaml' })
+                    });
+                    
+                    if (response.ok) {
+                        this.statusText.textContent = `Saved as: ${filename}.yaml`;
+                    } else {
+                        const errorData = await response.json();
+                        this.showError(errorData.error || 'Failed to save configuration');
+                        this.statusText.textContent = 'Failed to save configuration';
+                    }
+                } catch (error) {
+                    console.error('Failed to save configuration:', error);
+                    this.showError('Error saving configuration: ' + error.message);
+                    this.statusText.textContent = 'Error saving configuration';
+                }
+            }
+
+            displayConfiguration(config) {
+                this.currentConfig = config;
+                this.clearCanvas();
+
+                const nodeEntries = Object.entries(config.data || {});
+                const nodesPerRow = 4;
+                const nodeSpacing = { x: 220, y: 180 };
+                const startPos = { x: 50, y: 50 };
+
+                nodeEntries.forEach(([nodeId, nodeData], index) => {
+                    const row = Math.floor(index / nodesPerRow);
+                    const col = index % nodesPerRow;
+                    const x = startPos.x + col * nodeSpacing.x;
+                    const y = startPos.y + row * nodeSpacing.y;
+
+                    this.createNode(nodeId, nodeData, x, y);
+                });
+
+                this.updateConnections();
+            }
+
+            createNode(nodeId, nodeData, x, y) {
+                const nodeElement = document.createElement('div');
+                nodeElement.className = 'node';
+                nodeElement.style.left = `${x}px`;
+                nodeElement.style.top = `${y}px`;
+                
+                const nodeType = nodeData.type || 'unknown';
+                nodeElement.classList.add(`node-type-${nodeType}`);
+
+                const schema = this.nodeSchemas && this.nodeSchemas[nodeType];
+                const icon = schema ? schema.icon : this.getNodeIcon(nodeType);
+                const color = schema ? schema.color : this.getNodeColor(nodeType);
+                
+                // Set node color
+                nodeElement.style.setProperty('--node-color', color);
+
+                const properties = this.formatNodeProperties(nodeData, schema);
+
+                nodeElement.innerHTML = `
+                    <div class="node-header">
+                        <div class="node-icon">${icon}</div>
+                        <div class="node-name">${nodeId}</div>
+                    </div>
+                    <div class="node-body">
+                        ${properties}
+                    </div>
+                `;
+
+                nodeElement.addEventListener('dblclick', () => this.editNode(nodeId));
+                nodeElement.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.selectNode(nodeElement);
+                });
+
+                this.canvas.appendChild(nodeElement);
+                this.nodes.set(nodeId, {
+                    element: nodeElement,
+                    data: { ...nodeData },
+                    position: { x, y }
+                });
+            }
+
+            getNodeColor(nodeType) {
+                const colors = {
+                    'playlist': '#8E44AD',
+                    'liked_tracks': '#E74C3C',
+                    'output': '#2ECC71',
+                    'combiner': '#F39C12',
+                    'limit': '#34495E',
+                    'sort': '#3498DB',
+                    'filter_eval': '#E67E22',
+                    'is_liked': '#E91E63',
+                    'dedup': '#95A5A6'
+                };
+                return colors[nodeType] || '#7f8c8d';
+            }
+
+            getNodeIcon(nodeType) {
+                const icons = {
+                    'playlist': '♫',
+                    'output': '📤',
+                    'is_liked': '❤️',
+                    'is_disliked': '💔',
+                    'filter': '🔍',
+                    'limit': '📊',
+                    'shuffle': '🔀',
+                    'sort': '📶'
+                };
+                return icons[nodeType] || '📦';
+            }
+
+            formatNodeProperties(nodeData, schema = null) {
+                const excludeKeys = ['input', 'inputs', 'type'];
+                const properties = Object.entries(nodeData)
+                    .filter(([key]) => !excludeKeys.includes(key))
+                    .slice(0, 4)
+                    .map(([key, value]) => {
+                        let displayValue = String(value);
+                        if (displayValue.length > 25) {
+                            displayValue = displayValue.substring(0, 22) + '...';
+                        }
+                        
+                        // Use schema description if available
+                        let keyDisplay = key;
+                        if (schema && schema.properties && schema.properties[key]) {
+                            const propSchema = schema.properties[key];
+                            if (propSchema.description) {
+                                keyDisplay = `${key}`;
+                            }
+                        }
+                        
+                        return `<div class="node-property"><strong>${keyDisplay}:</strong> ${displayValue}</div>`;
+                    })
+                    .join('');
+                
+                return properties || '<div class="node-property">No additional properties</div>';
+            }
+
+            updateConnections() {
+                this.connectionsContainer.innerHTML = '';
+                this.connections = [];
+
+                for (const [nodeId, nodeInfo] of this.nodes) {
+                    const nodeData = nodeInfo.data;
+                    
+                    // Handle single input
+                    if (nodeData.input && this.nodes.has(nodeData.input)) {
+                        this.createConnection(nodeData.input, nodeId);
+                    }
+
+                    // Handle multiple inputs
+                    if (nodeData.inputs && Array.isArray(nodeData.inputs)) {
+                        nodeData.inputs.forEach(inputId => {
+                            if (inputId && this.nodes.has(inputId)) {
+                                this.createConnection(inputId, nodeId);
+                            }
+                        });
+                    }
+                }
+            }
+
+            createConnection(fromNodeId, toNodeId) {
+                const fromNode = this.nodes.get(fromNodeId);
+                const toNode = this.nodes.get(toNodeId);
+                
+                if (!fromNode || !toNode) return;
+
+                const fromRect = fromNode.element.getBoundingClientRect();
+                const toRect = toNode.element.getBoundingClientRect();
+                const canvasRect = this.canvas.getBoundingClientRect();
+
+                const fromX = fromRect.left - canvasRect.left + fromRect.width / 2;
+                const fromY = fromRect.top - canvasRect.top + fromRect.height / 2;
+                const toX = toRect.left - canvasRect.left + toRect.width / 2;
+                const toY = toRect.top - canvasRect.top + toRect.height / 2;
+
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                const controlPoint1X = fromX + (toX - fromX) * 0.5;
+                const controlPoint1Y = fromY;
+                const controlPoint2X = toX - (toX - fromX) * 0.5;
+                const controlPoint2Y = toY;
+
+                const pathData = `M ${fromX} ${fromY} C ${controlPoint1X} ${controlPoint1Y} ${controlPoint2X} ${controlPoint2Y} ${toX} ${toY}`;
+                
+                path.setAttribute("d", pathData);
+                path.setAttribute("class", "connection-line");
+
+                // Add arrow marker
+                const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+                const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+                marker.setAttribute("id", `arrow-${fromNodeId}-${toNodeId}`);
+                marker.setAttribute("markerWidth", "10");
+                marker.setAttribute("markerHeight", "10");
+                marker.setAttribute("refX", "8");
+                marker.setAttribute("refY", "3");
+                marker.setAttribute("orient", "auto");
+                marker.setAttribute("markerUnits", "strokeWidth");
+
+                const arrowPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                arrowPath.setAttribute("d", "M0,0 L0,6 L9,3 z");
+                arrowPath.setAttribute("class", "connection-arrow");
+
+                marker.appendChild(arrowPath);
+                defs.appendChild(marker);
+                this.connectionsContainer.appendChild(defs);
+
+                path.setAttribute("marker-end", `url(#arrow-${fromNodeId}-${toNodeId})`);
+                this.connectionsContainer.appendChild(path);
+
+                this.connections.push({ from: fromNodeId, to: toNodeId, element: path });
+            }
+
+            selectNode(nodeElement) {
+                // Remove previous selection
+                this.nodes.forEach(nodeInfo => {
+                    nodeInfo.element.classList.remove('selected');
+                });
+
+                // Select new node
+                nodeElement.classList.add('selected');
+                this.selectedNode = nodeElement;
+            }
+
+            editNode(nodeId) {
+                const nodeInfo = this.nodes.get(nodeId);
+                if (!nodeInfo) return;
+
+                this.modalTitle.textContent = `Edit Node: ${nodeId}`;
+                this.currentEditingNode = nodeId;
+                
+                const nodeType = nodeInfo.data.type;
+                const schema = this.nodeSchemas && this.nodeSchemas[nodeType];
+                
+                // Generate form fields based on schema
+                this.modalForm.innerHTML = '';
+                
+                if (schema) {
+                    // Add type field (read-only)
+                    const typeGroup = document.createElement('div');
+                    typeGroup.className = 'form-group';
+                    typeGroup.innerHTML = `
+                        <label class="form-label">Type:</label>
+                        <input class="form-input" value="${schema.icon} ${schema.name}" readonly style="background: #f5f5f5; color: #666;">
+                    `;
+                    this.modalForm.appendChild(typeGroup);
+
+                    // Add schema-defined properties
+                    Object.entries(schema.properties).forEach(([propName, propConfig]) => {
+                        const currentValue = nodeInfo.data[propName] || '';
+                        const formGroup = this.createPropertyInput(propName, propConfig, currentValue, nodeId);
+                        this.modalForm.appendChild(formGroup);
+                    });
+
+                    // Add existing properties not in schema (for backwards compatibility)
+                    Object.entries(nodeInfo.data).forEach(([key, value]) => {
+                        if (key !== 'type' && !schema.properties[key] && key !== 'input' && key !== 'inputs') {
+                            const formGroup = document.createElement('div');
+                            formGroup.className = 'form-group';
+                            formGroup.innerHTML = `
+                                <label class="form-label">${key}: <small style="color: #e67e22;">(custom property)</small></label>
+                                <input class="form-input" name="${key}" value="${value || ''}" type="text">
+                            `;
+                            this.modalForm.appendChild(formGroup);
+                        }
+                    });
+                } else {
+                    // Fallback for unknown node types
+                    Object.entries(nodeInfo.data).forEach(([key, value]) => {
+                        if (key === 'input' || key === 'inputs') return;
+
+                        const formGroup = document.createElement('div');
+                        formGroup.className = 'form-group';
+                        
+                        const isReadonly = key === 'type' ? 'readonly style="background: #f5f5f5; color: #666;"' : '';
+                        formGroup.innerHTML = `
+                            <label class="form-label">${key}:</label>
+                            <input class="form-input" name="${key}" value="${value || ''}" type="text" ${isReadonly}>
+                        `;
+                        
+                        this.modalForm.appendChild(formGroup);
+                    });
+                }
+
+                this.editModal.classList.remove('hidden');
+            }
+
+            createPropertyInput(propName, propConfig, currentValue, nodeId) {
+                const formGroup = document.createElement('div');
+                formGroup.className = 'form-group';
+                
+                const isRequired = propConfig.required ? ' <span style="color: #e74c3c;">*</span>' : '';
+                const description = propConfig.description ? `<br><small style="color: #666;">${propConfig.description}</small>` : '';
+                
+                let inputHtml = '';
+                
+                switch (propConfig.type) {
+                    case 'boolean':
+                        const checked = currentValue === true || currentValue === 'true' ? 'checked' : '';
+                        inputHtml = `<input class="form-input" name="${propName}" type="checkbox" ${checked} style="width: auto;">`;
+                        break;
+                        
+                    case 'integer':
+                        inputHtml = `<input class="form-input" name="${propName}" value="${currentValue || ''}" type="number" step="1">`;
+                        break;
+                        
+                    case 'select':
+                        const options = propConfig.options || [];
+                        const optionsHtml = options.map(option => {
+                            const selected = option === currentValue ? 'selected' : '';
+                            return `<option value="${option}" ${selected}>${option}</option>`;
+                        }).join('');
+                        inputHtml = `<select class="form-input" name="${propName}">
+                            <option value="">Select ${propName}...</option>
+                            ${optionsHtml}
+                        </select>`;
+                        break;
+                        
+                    case 'node_reference':
+                        const nodeOptions = Array.from(this.nodes.keys()).filter(id => id !== nodeId);
+                        const nodeOptionsHtml = nodeOptions.map(nodeId => {
+                            const selected = nodeId === currentValue ? 'selected' : '';
+                            return `<option value="${nodeId}" ${selected}>${nodeId}</option>`;
+                        }).join('');
+                        inputHtml = `<select class="form-input" name="${propName}">
+                            <option value="">Select node...</option>
+                            ${nodeOptionsHtml}
+                        </select>`;
+                        break;
+                        
+                    case 'node_list':
+                        // Create multi-select checkbox interface for node lists
+                        const availableNodes = Array.from(this.nodes.keys()).filter(id => id !== nodeId);
+                        const currentValues = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
+                        
+                        if (availableNodes.length === 0) {
+                            inputHtml = `<div class="checkbox-list">
+                                <div class="checkbox-list-empty">No other nodes available</div>
+                            </div>`;
+                        } else {
+                            const checkboxItems = availableNodes.map(nodeOption => {
+                                const isChecked = currentValues.includes(nodeOption);
+                                const checkboxId = `${propName}_${nodeOption}`;
+                                return `<div class="checkbox-item">
+                                    <input type="checkbox" id="${checkboxId}" name="${propName}" value="${nodeOption}" ${isChecked ? 'checked' : ''}>
+                                    <label for="${checkboxId}">${nodeOption}</label>
+                                </div>`;
+                            }).join('');
+                            
+                            inputHtml = `<div class="checkbox-list" name="${propName}">
+                                ${checkboxItems}
+                            </div>`;
+                        }
+                        break;
+                        
+                    default: // text
+                        inputHtml = `<input class="form-input" name="${propName}" value="${currentValue || ''}" type="text">`;
+                        break;
+                }
+                
+                formGroup.innerHTML = `
+                    <label class="form-label">${propName}${isRequired}${description}</label>
+                    ${inputHtml}
+                `;
+                
+                return formGroup;
+            }
+
+            saveNodeChanges() {
+                const nodeInfo = this.nodes.get(this.currentEditingNode);
+                if (!nodeInfo) return;
+
+                // First, collect all checkbox lists for node_list properties
+                const checkboxLists = {};
+                this.modalForm.querySelectorAll('.checkbox-list').forEach(checkboxContainer => {
+                    const propertyName = checkboxContainer.getAttribute('name');
+                    if (propertyName) {
+                        const checkboxes = checkboxContainer.querySelectorAll('input[type="checkbox"]:checked');
+                        checkboxLists[propertyName] = Array.from(checkboxes).map(cb => cb.value);
+                    }
+                });
+
+                // Update properties from all form inputs
+                const inputs = this.modalForm.querySelectorAll('input[name], select[name], textarea[name]');
+                
+                inputs.forEach(input => {
+                    const propName = input.name;
+                    
+                    // Skip checkboxes that are part of checkbox lists (handled above)
+                    if (input.type === 'checkbox' && input.closest('.checkbox-list')) {
+                        return;
+                    }
+                    
+                    let value = input.value.trim();
+                    
+                    // Handle different input types
+                    if (input.type === 'checkbox') {
+                        value = input.checked;
+                    } else if (input.type === 'number') {
+                        value = value ? parseInt(value) : '';
+                    } else if (input.tagName === 'TEXTAREA' && propName === 'inputs') {
+                        // Handle legacy node lists (fallback for textarea)
+                        if (value) {
+                            value = value.split(',').map(s => s.trim()).filter(s => s);
+                        } else {
+                            value = [];
+                        }
+                    }
+                    
+                    // Update the node data
+                    if (value !== '') {
+                        nodeInfo.data[propName] = value;
+                    } else if (nodeInfo.data.hasOwnProperty(propName)) {
+                        delete nodeInfo.data[propName];
+                    }
+                });
+                
+                // Apply checkbox list values
+                Object.entries(checkboxLists).forEach(([propName, values]) => {
+                    if (values.length > 0) {
+                        nodeInfo.data[propName] = values;
+                    } else if (nodeInfo.data.hasOwnProperty(propName)) {
+                        delete nodeInfo.data[propName];
+                    }
+                });
+
+                // Update the visual representation
+                const nodeType = nodeInfo.data.type;
+                const schema = this.nodeSchemas && this.nodeSchemas[nodeType];
+                const properties = this.formatNodeProperties(nodeInfo.data, schema);
+                const bodyElement = nodeInfo.element.querySelector('.node-body');
+                bodyElement.innerHTML = properties;
+
+                this.closeModal();
+                this.statusText.textContent = `Updated node: ${this.currentEditingNode}`;
+                
+                // Update connections in case inputs changed
+                this.updateConnections();
+            }
+
+            closeModal() {
+                this.editModal.classList.add('hidden');
+                this.currentEditingNode = null;
+            }
+
+            // Remove old addNewNode - replaced by showAddNodeModal
+
+            clearCanvas() {
+                this.canvas.innerHTML = '<svg id="connections" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></svg>';
+                this.connectionsContainer = document.getElementById('connections');
+                this.nodes.clear();
+                this.connections = [];
+            }
+
+            serializeConfiguration() {
+                const data = {};
+                this.nodes.forEach((nodeInfo, nodeId) => {
+                    data[nodeId] = { ...nodeInfo.data };
+                });
+                return { data };
+            }
+
+            handleMouseDown(e) {
+                const nodeElement = e.target.closest('.node');
+                if (nodeElement) {
+                    const rect = nodeElement.getBoundingClientRect();
+                    this.dragOffset = {
+                        x: e.clientX - rect.left,
+                        y: e.clientY - rect.top
+                    };
+                    this.isDragging = nodeElement;
+                    this.selectNode(nodeElement);
+                    e.preventDefault();
+                }
+            }
+
+            handleMouseMove(e) {
+                if (this.isDragging) {
+                    const x = e.clientX - this.dragOffset.x - this.canvas.getBoundingClientRect().left;
+                    const y = e.clientY - this.dragOffset.y - this.canvas.getBoundingClientRect().top;
+                    
+                    this.isDragging.style.left = `${x}px`;
+                    this.isDragging.style.top = `${y}px`;
+                    
+                    // Update stored position
+                    for (const [nodeId, nodeInfo] of this.nodes) {
+                        if (nodeInfo.element === this.isDragging) {
+                            nodeInfo.position = { x, y };
+                            break;
+                        }
+                    }
+                    
+                    this.updateConnections();
+                }
+            }
+
+            handleMouseUp(e) {
+                this.isDragging = false;
+            }
+        }
+
+        // Initialize the editor when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new ConfigurationEditor();
+        });
+    </script>
+</body>
+</html>
