@@ -324,6 +324,156 @@
             margin-top: 24px;
         }
 
+        /* Template View Styles */
+        .template-view {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #fafafa;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .template-header {
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .template-breadcrumb {
+            font-size: 16px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .template-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .template-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .template-sidebar {
+            width: 300px;
+            background: white;
+            border-right: 1px solid #e0e0e0;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .template-sidebar h3 {
+            margin: 0 0 12px 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .template-canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .template-canvas {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+
+        .template-canvas.dragging {
+            cursor: grabbing;
+        }
+
+        .template-variable {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 8px 12px;
+            margin: 4px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #495057;
+        }
+
+        .template-instance {
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 8px 0;
+        }
+
+        .template-instance-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .template-instance-title {
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .template-instance-remove {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 4px 8px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .template-instance-vars {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .template-instance-var {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .template-instance-var label {
+            font-weight: 500;
+            color: #666;
+            margin-bottom: 2px;
+        }
+
+        .template-instance-var input {
+            padding: 4px 6px;
+            border: 1px solid #ced4da;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
+        /* Highlight placeholders in template nodes */
+        .template-placeholder {
+            background: #fff3cd;
+            border: 1px dashed #ffc107;
+            border-radius: 3px;
+            padding: 1px 3px;
+            font-weight: 600;
+            color: #856404;
+        }
+
         .hidden {
             display: none;
         }
@@ -408,6 +558,37 @@
         </div>
     </div>
 
+    <!-- Template View -->
+    <div class="template-view hidden" id="templateView">
+        <div class="template-header">
+            <div class="template-breadcrumb">
+                <span id="templateBreadcrumb">Overview > Template: [Template Name]</span>
+            </div>
+            <div class="template-actions">
+                <button class="btn btn-secondary" id="exitTemplateBtn">← Back to Overview</button>
+                <button class="btn" id="saveTemplateBtn">Save Template</button>
+            </div>
+        </div>
+        <div class="template-content">
+            <div class="template-sidebar">
+                <h3>Template Variables</h3>
+                <div id="templateVariables">
+                    <!-- Variables will be populated here -->
+                </div>
+                <h3>Instances</h3>
+                <div id="templateInstances">
+                    <!-- Instances will be populated here -->
+                </div>
+                <button class="btn" id="addInstanceBtn">Add Instance</button>
+            </div>
+            <div class="template-canvas-container">
+                <div class="template-canvas" id="templateCanvas">
+                    <svg id="templateConnections" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         class ConfigurationEditor {
             constructor() {
@@ -419,6 +600,13 @@
                 this.canvasOffset = { x: 0, y: 0 };
                 this.currentConfig = null;
                 this.nodeSchemas = null;
+
+                // Template view properties
+                this.isInTemplateView = false;
+                this.currentTemplateNodeId = null;
+                this.templateNodes = new Map();
+                this.templateConnections = [];
+                this.templateCanvasOffset = { x: 0, y: 0 };
 
                 this.initializeElements();
                 this.setupEventListeners();
@@ -437,6 +625,14 @@
                 this.errorModal = document.getElementById('errorModal');
                 this.errorMessage = document.getElementById('errorMessage');
                 this.addNodeModal = document.getElementById('addNodeModal');
+
+                // Template view elements
+                this.templateView = document.getElementById('templateView');
+                this.templateBreadcrumb = document.getElementById('templateBreadcrumb');
+                this.templateCanvas = document.getElementById('templateCanvas');
+                this.templateConnections = document.getElementById('templateConnections');
+                this.templateVariables = document.getElementById('templateVariables');
+                this.templateInstances = document.getElementById('templateInstances');
             }
 
             setupEventListeners() {
@@ -455,6 +651,11 @@
 
                 // Node type selection
                 document.getElementById('newNodeType').addEventListener('change', (e) => this.updateNodeTypeDescription(e.target.value));
+
+                // Template view buttons
+                document.getElementById('exitTemplateBtn').addEventListener('click', () => this.exitTemplateView());
+                document.getElementById('saveTemplateBtn').addEventListener('click', () => this.saveTemplate());
+                document.getElementById('addInstanceBtn').addEventListener('click', () => this.addTemplateInstance());
 
                 // Canvas events
                 this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
@@ -690,17 +891,23 @@
                 // Set node color
                 nodeElement.style.setProperty('--node-color', color);
 
-                const properties = this.formatNodeProperties(nodeData, schema);
+                let content;
+                if (nodeType === 'dynamic_template') {
+                    content = this.formatDynamicTemplateNode(nodeId, nodeData, schema);
+                } else {
+                    const properties = this.formatNodeProperties(nodeData, schema);
+                    content = `
+                        <div class="node-header">
+                            <div class="node-icon">${icon}</div>
+                            <div class="node-name">${nodeId}</div>
+                        </div>
+                        <div class="node-body">
+                            ${properties}
+                        </div>
+                    `;
+                }
 
-                nodeElement.innerHTML = `
-                    <div class="node-header">
-                        <div class="node-icon">${icon}</div>
-                        <div class="node-name">${nodeId}</div>
-                    </div>
-                    <div class="node-body">
-                        ${properties}
-                    </div>
-                `;
+                nodeElement.innerHTML = content;
 
                 nodeElement.addEventListener('dblclick', () => this.editNode(nodeId));
                 nodeElement.addEventListener('click', (e) => {
@@ -770,6 +977,59 @@
                     .join('');
                 
                 return properties || '<div class="node-property">No additional properties</div>';
+            }
+
+            formatDynamicTemplateNode(nodeId, nodeData, schema) {
+                const icon = schema ? schema.icon : '🔄';
+                const instances = nodeData.instances || [];
+                const templateNodes = nodeData.template || {};
+                
+                // Create mini-graphs for each instance
+                const miniGraphs = instances.slice(0, 3).map((instance, index) => {
+                    const instanceName = this.getInstanceDisplayName(instance);
+                    return `
+                        <div class="mini-graph" style="display: inline-block; margin: 2px; padding: 4px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 3px; font-size: 10px;">
+                            <div style="font-weight: bold; margin-bottom: 2px;">${instanceName}</div>
+                            <div style="font-size: 8px; color: #666;">${Object.keys(templateNodes).length} nodes</div>
+                        </div>
+                    `;
+                }).join('');
+                
+                const moreInstances = instances.length > 3 ? `<div style="font-size: 10px; color: #666; margin-top: 4px;">+${instances.length - 3} more...</div>` : '';
+                
+                return `
+                    <div class="node-header">
+                        <div class="node-icon">${icon}</div>
+                        <div class="node-name">${nodeId}</div>
+                    </div>
+                    <div class="node-body">
+                        <div class="node-property"><strong>Template:</strong> ${Object.keys(templateNodes).length} nodes</div>
+                        <div class="node-property"><strong>Instances:</strong> ${instances.length}</div>
+                        <div style="margin-top: 8px;">
+                            ${miniGraphs}
+                            ${moreInstances}
+                        </div>
+                        <div style="margin-top: 8px; font-size: 11px; color: #007acc; font-style: italic;">
+                            Double-click to edit template
+                        </div>
+                    </div>
+                `;
+            }
+
+            getInstanceDisplayName(instance) {
+                // Try to find a meaningful name from the instance variables
+                const keys = Object.keys(instance);
+                if (keys.length === 0) return 'Empty';
+                
+                // Look for common naming variables
+                const nameKeys = ['name', 'title', 'label', 'id'];
+                for (const key of nameKeys) {
+                    if (instance[key]) return String(instance[key]).substring(0, 8);
+                }
+                
+                // Use first variable value
+                const firstValue = String(instance[keys[0]]);
+                return firstValue.substring(0, 8) || 'Instance';
             }
 
             updateConnections() {
@@ -860,6 +1120,12 @@
             editNode(nodeId) {
                 const nodeInfo = this.nodes.get(nodeId);
                 if (!nodeInfo) return;
+
+                // Special handling for dynamic templates - enter template view instead of editing
+                if (nodeInfo.data.type === 'dynamic_template') {
+                    this.enterTemplateView(nodeId);
+                    return;
+                }
 
                 this.modalTitle.textContent = `Edit Node: ${nodeId}`;
                 this.currentEditingNode = nodeId;
@@ -1095,6 +1361,249 @@
                 return { data };
             }
 
+            // Template View Methods
+            async enterTemplateView(nodeId) {
+                try {
+                    this.currentTemplateNodeId = nodeId;
+                    const configData = this.getCurrentConfigData();
+                    
+                    const response = await fetch('/api/template/enter', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            nodeId: nodeId,
+                            configData: configData.data 
+                        })
+                    });
+
+                    if (response.ok) {
+                        const templateData = await response.json();
+                        this.showTemplateView(nodeId, templateData);
+                    } else {
+                        const error = await response.json();
+                        this.showError(`Failed to enter template: ${error.error}`);
+                    }
+                } catch (error) {
+                    this.showError(`Error entering template: ${error.message}`);
+                }
+            }
+
+            showTemplateView(nodeId, templateData) {
+                this.isInTemplateView = true;
+                
+                // Update breadcrumb
+                this.templateBreadcrumb.textContent = `Overview > Template: ${nodeId}`;
+                
+                // Show template view and hide main view
+                this.templateView.classList.remove('hidden');
+                
+                // Load template nodes
+                this.loadTemplateNodes(templateData.templateNodes);
+                
+                // Show variables and instances
+                this.displayTemplateVariables(templateData.variables);
+                this.displayTemplateInstances(templateData.instances, templateData.variables);
+            }
+
+            loadTemplateNodes(templateNodes) {
+                // Clear existing template canvas
+                this.templateCanvas.innerHTML = '<svg id="templateConnections" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></svg>';
+                this.templateConnections = document.getElementById('templateConnections');
+                this.templateNodes.clear();
+                this.templateConnections = [];
+
+                // Create nodes with placeholder highlighting
+                let x = 50, y = 50;
+                for (const [nodeId, nodeData] of Object.entries(templateNodes)) {
+                    this.createTemplateNode(nodeId, nodeData, x, y);
+                    x += 200;
+                    if (x > 800) {
+                        x = 50;
+                        y += 150;
+                    }
+                }
+
+                this.updateTemplateConnections();
+            }
+
+            createTemplateNode(nodeId, nodeData, x, y) {
+                const nodeElement = document.createElement('div');
+                nodeElement.className = 'node';
+                nodeElement.style.left = `${x}px`;
+                nodeElement.style.top = `${y}px`;
+                
+                const nodeType = nodeData.type || 'unknown';
+                nodeElement.classList.add(`node-type-${nodeType}`);
+
+                const schema = this.nodeSchemas && this.nodeSchemas[nodeType];
+                const icon = schema ? schema.icon : '?';
+                const color = schema ? schema.color : '#95A5A6';
+                
+                // Set node color
+                nodeElement.style.setProperty('--node-color', color);
+
+                // Format properties with placeholder highlighting
+                const properties = this.formatTemplateNodeProperties(nodeData, schema);
+
+                nodeElement.innerHTML = `
+                    <div class="node-header">
+                        <div class="node-icon">${icon}</div>
+                        <div class="node-name">${this.highlightPlaceholders(nodeId)}</div>
+                    </div>
+                    <div class="node-body">
+                        ${properties}
+                    </div>
+                `;
+
+                nodeElement.addEventListener('dblclick', () => this.editTemplateNode(nodeId));
+                nodeElement.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.selectTemplateNode(nodeElement);
+                });
+
+                this.templateCanvas.appendChild(nodeElement);
+                this.templateNodes.set(nodeId, {
+                    element: nodeElement,
+                    data: nodeData,
+                    position: { x, y }
+                });
+            }
+
+            formatTemplateNodeProperties(nodeData, schema) {
+                let properties = '';
+                
+                for (const [key, value] of Object.entries(nodeData)) {
+                    if (key === 'type') continue;
+                    
+                    const displayValue = this.highlightPlaceholders(String(value));
+                    properties += `<div class="node-property"><strong>${key}:</strong> ${displayValue}</div>`;
+                }
+                
+                return properties || '<div class="node-property"><em>No properties</em></div>';
+            }
+
+            highlightPlaceholders(text) {
+                if (typeof text !== 'string') return text;
+                return text.replace(/\{([^{}]+)\}/g, '<span class="template-placeholder">{$1}</span>');
+            }
+
+            displayTemplateVariables(variables) {
+                this.templateVariables.innerHTML = '';
+                
+                if (variables.length === 0) {
+                    this.templateVariables.innerHTML = '<div style="color: #666; font-style: italic;">No variables detected</div>';
+                    return;
+                }
+
+                variables.forEach(variable => {
+                    const varElement = document.createElement('div');
+                    varElement.className = 'template-variable';
+                    varElement.textContent = `{${variable}}`;
+                    this.templateVariables.appendChild(varElement);
+                });
+            }
+
+            displayTemplateInstances(instances, variables) {
+                this.templateInstances.innerHTML = '';
+                
+                instances.forEach((instance, index) => {
+                    const instanceElement = document.createElement('div');
+                    instanceElement.className = 'template-instance';
+                    
+                    const header = document.createElement('div');
+                    header.className = 'template-instance-header';
+                    header.innerHTML = `
+                        <span class="template-instance-title">Instance ${index + 1}</span>
+                        <button class="template-instance-remove" onclick="editor.removeTemplateInstance(${index})">Remove</button>
+                    `;
+                    instanceElement.appendChild(header);
+
+                    const varsContainer = document.createElement('div');
+                    varsContainer.className = 'template-instance-vars';
+                    
+                    variables.forEach(variable => {
+                        const varDiv = document.createElement('div');
+                        varDiv.className = 'template-instance-var';
+                        varDiv.innerHTML = `
+                            <label>${variable}:</label>
+                            <input type="text" value="${instance[variable] || ''}" 
+                                   onchange="editor.updateInstanceVariable(${index}, '${variable}', this.value)">
+                        `;
+                        varsContainer.appendChild(varDiv);
+                    });
+                    
+                    instanceElement.appendChild(varsContainer);
+                    this.templateInstances.appendChild(instanceElement);
+                });
+            }
+
+            updateTemplateConnections() {
+                // Implementation for template connections - simplified for now
+                // This would need to be implemented similarly to updateConnections()
+                // but for the template canvas
+            }
+
+            selectTemplateNode(nodeElement) {
+                // Remove previous selection
+                this.templateNodes.forEach(nodeInfo => {
+                    nodeInfo.element.classList.remove('selected');
+                });
+
+                // Select new node
+                nodeElement.classList.add('selected');
+            }
+
+            editTemplateNode(nodeId) {
+                // For now, just show a simple alert - could be expanded to edit template nodes
+                alert(`Editing template node: ${nodeId}\nThis feature can be expanded to allow editing template node properties.`);
+            }
+
+            exitTemplateView() {
+                this.isInTemplateView = false;
+                this.currentTemplateNodeId = null;
+                this.templateView.classList.add('hidden');
+            }
+
+            saveTemplate() {
+                // Implementation for saving template changes
+                alert('Save template functionality to be implemented');
+            }
+
+            addTemplateInstance() {
+                // Add a new empty instance
+                const nodeData = this.currentConfig[this.currentTemplateNodeId];
+                if (!nodeData.instances) nodeData.instances = [];
+                
+                // Create new instance with empty values for all variables
+                const newInstance = {};
+                if (nodeData.instances.length > 0) {
+                    // Copy structure from first instance
+                    Object.keys(nodeData.instances[0]).forEach(key => {
+                        newInstance[key] = '';
+                    });
+                }
+                
+                nodeData.instances.push(newInstance);
+                
+                // Refresh display
+                this.enterTemplateView(this.currentTemplateNodeId);
+            }
+
+            removeTemplateInstance(index) {
+                const nodeData = this.currentConfig[this.currentTemplateNodeId];
+                if (nodeData.instances && nodeData.instances.length > 1) {
+                    nodeData.instances.splice(index, 1);
+                    this.enterTemplateView(this.currentTemplateNodeId);
+                }
+            }
+
+            updateInstanceVariable(instanceIndex, variable, value) {
+                const nodeData = this.currentConfig[this.currentTemplateNodeId];
+                if (nodeData.instances && nodeData.instances[instanceIndex]) {
+                    nodeData.instances[instanceIndex][variable] = value;
+                }
+            }
+
             handleMouseDown(e) {
                 const nodeElement = e.target.closest('.node');
                 if (nodeElement) {
@@ -1135,8 +1644,9 @@
         }
 
         // Initialize the editor when the page loads
+        let editor;
         document.addEventListener('DOMContentLoaded', () => {
-            new ConfigurationEditor();
+            editor = new ConfigurationEditor();
         });
     </script>
 </body>

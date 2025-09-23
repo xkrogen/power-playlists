@@ -70,6 +70,10 @@ class ConfigurationRequestHandler(BaseHTTPRequestHandler):
             self._handle_save_config()
         elif path == "/api/save-as":
             self._handle_save_as_config()
+        elif path == "/api/template/enter":
+            self._handle_enter_template()
+        elif path == "/api/template/extract-variables":
+            self._handle_extract_template_variables()
         else:
             self.send_error(404, "Endpoint not found")
 
@@ -290,6 +294,24 @@ class ConfigurationRequestHandler(BaseHTTPRequestHandler):
                     "color": "#E91E63",
                     "properties": {"input": {"type": "node_reference", "required": True, "description": "Input node"}},
                 },
+                "dynamic_template": {
+                    "name": "Dynamic Template",
+                    "description": "Create multiple instances of a template with different variables",
+                    "icon": "🔄",
+                    "color": "#17A2B8",
+                    "properties": {
+                        "template": {
+                            "type": "template_nodes",
+                            "required": True,
+                            "description": "Dictionary of node templates with placeholders",
+                        },
+                        "instances": {
+                            "type": "template_instances",
+                            "required": True,
+                            "description": "List of variable mappings for each template instance",
+                        },
+                    },
+                },
             }
 
             self._send_json_response(200, {"schemas": node_schemas})
@@ -430,7 +452,7 @@ class ConfigurationRequestHandler(BaseHTTPRequestHandler):
             "filter_release_date": {"required": ["input"], "optional": ["days_ago", "cutoff_time", "only_before"]},
             "dedup": {"required": ["input"], "optional": ["id_property"]},
             "is_liked": {"required": ["input"], "optional": []},
-            "dynamic_template": {"required": [], "optional": []},  # Complex validation needed
+            "dynamic_template": {"required": ["template", "instances"], "optional": []},
             "combine_sort_dedup_output": {
                 "required": ["inputs", "playlist_name", "sort_key"],
                 "optional": ["sort_desc", "public", "size"],
@@ -487,7 +509,94 @@ class ConfigurationRequestHandler(BaseHTTPRequestHandler):
             elif has_days_ago and has_cutoff_time:
                 errors.append(f"Node '{node_id}' cannot have both 'days_ago' and 'cutoff_time' properties")
 
+        # Special validation for dynamic templates
+        if node_type == "dynamic_template":
+            if "template" in node_data:
+                if not isinstance(node_data["template"], dict):
+                    errors.append(f"Node '{node_id}' template property must be a dictionary")
+                elif not node_data["template"]:
+                    errors.append(f"Node '{node_id}' template property cannot be empty")
+
+            if "instances" in node_data:
+                if not isinstance(node_data["instances"], list):
+                    errors.append(f"Node '{node_id}' instances property must be a list")
+                elif not node_data["instances"]:
+                    errors.append(f"Node '{node_id}' instances property cannot be empty")
+                else:
+                    # Validate that all instances are dictionaries
+                    for i, instance in enumerate(node_data["instances"]):
+                        if not isinstance(instance, dict):
+                            errors.append(f"Node '{node_id}' instance {i} must be a dictionary")
+
         return errors
+
+    def _handle_enter_template(self):
+        """Handle requests to enter template view mode."""
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            post_data = self.rfile.read(content_length)
+            request_data = json.loads(post_data.decode("utf-8"))
+
+            node_id = request_data.get("nodeId")
+            config_data = request_data.get("configData", {})
+
+            if not node_id or node_id not in config_data:
+                self._send_json_response(400, {"error": "Invalid node ID"})
+                return
+
+            node_data = config_data[node_id]
+            if node_data.get("type") != "dynamic_template":
+                self._send_json_response(400, {"error": "Node is not a dynamic template"})
+                return
+
+            template_nodes = node_data.get("template", {})
+            instances = node_data.get("instances", [])
+
+            # Extract variables from the first instance (if available)
+            variables = []
+            if instances:
+                variables = list(instances[0].keys())
+
+            self._send_json_response(
+                200, {"templateNodes": template_nodes, "instances": instances, "variables": variables}
+            )
+
+        except Exception as e:
+            self._send_json_response(500, {"error": f"Failed to enter template: {str(e)}"})
+
+    def _handle_extract_template_variables(self):
+        """Extract variables from template nodes."""
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            post_data = self.rfile.read(content_length)
+            request_data = json.loads(post_data.decode("utf-8"))
+
+            template_nodes = request_data.get("templateNodes", {})
+
+            variables = set()
+            self._extract_variables_recursive(template_nodes, variables)
+
+            self._send_json_response(200, {"variables": sorted(list(variables))})
+
+        except Exception as e:
+            self._send_json_response(500, {"error": f"Failed to extract variables: {str(e)}"})
+
+    def _extract_variables_recursive(self, obj, variables: set):
+        """Recursively extract template variables from an object."""
+        import re
+
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                self._extract_variables_recursive(key, variables)
+                self._extract_variables_recursive(value, variables)
+        elif isinstance(obj, list):
+            for item in obj:
+                self._extract_variables_recursive(item, variables)
+        elif isinstance(obj, str):
+            # Find variables in the format {variable_name}
+            matches = re.findall(r"\{([^{}]+)\}", obj)
+            for match in matches:
+                variables.add(match)
 
     def _write_yaml_config(self, file_path: str, config_data: dict[str, Any]):
         """Write configuration data to a YAML file."""
