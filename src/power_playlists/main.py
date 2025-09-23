@@ -91,6 +91,66 @@ def run(userconf: list[str], verifymode: str, force: bool):
         sys.exit(1)
 
 
+def _select_user_config(app_conf: utils.AppConfig) -> str:
+    """Select a user configuration file, providing a menu if multiple exist."""
+    try:
+        user_configs = app_conf.get_user_config_files()
+    except ValueError as e:
+        raise click.ClickException(f"Error finding user configurations: {e}") from e
+
+    if len(user_configs) == 1:
+        return user_configs[0]
+    elif len(user_configs) > 1:
+        click.echo("Multiple user configuration files found:")
+        for i, config_path in enumerate(user_configs, 1):
+            config_name = os.path.basename(config_path)
+            click.echo(f"  {i}. {config_name} ({config_path})")
+
+        while True:
+            try:
+                choice = click.prompt("Select configuration to edit", type=int)
+                if 1 <= choice <= len(user_configs):
+                    return user_configs[choice - 1]
+                else:
+                    click.echo(f"Please enter a number between 1 and {len(user_configs)}")
+            except click.Abort:
+                raise click.ClickException("Configuration selection cancelled") from None
+    else:
+        raise click.ClickException("No user configuration files found")
+
+
+@cli.command()
+@click.option(
+    "--userconf",
+    type=click.Path(exists=True, dir_okay=False, path_type=pathlib.Path),
+    help="Path to a specific user configuration file to edit",
+)
+@click.option(
+    "--appconf",
+    type=click.Path(exists=True, dir_okay=False, path_type=pathlib.Path),
+    help="Path to app configuration file. Will discover all user configs and provide selection if multiple exist",
+)
+def edit(userconf: pathlib.Path | None, appconf: pathlib.Path | None):
+    """Open a graphical editor for user configuration files."""
+    from .gui_editor import launch_gui_editor
+
+    app_conf = utils.global_conf
+    if app_conf is None:
+        raise RuntimeError("global_conf is not initialized")
+
+    # If appconf is specified, use it to create a temporary AppConfig
+    if appconf:
+        temp_app_conf = utils.AppConfig(str(appconf))
+        selected_userconf = _select_user_config(temp_app_conf)
+    elif userconf:
+        selected_userconf = str(userconf)
+    else:
+        # Default behavior - discover configs from current app config
+        selected_userconf = _select_user_config(app_conf)
+
+    launch_gui_editor(app_conf, selected_userconf)
+
+
 @cli.group(
     help="Control the background process to keep playlists updated."
     + (
