@@ -923,11 +923,31 @@
                 this.updateConnections();
             }
 
-            createNode(nodeId, nodeData, x, y) {
+            // Unified Node Rendering System
+            // This system handles rendering for:
+            // 1. Top-level nodes in overview
+            // 2. Sub-graphs within template nodes (mini-graphs)
+            // 3. Template editing view nodes
+
+            createUnifiedNode(nodeId, nodeData, x, y, options = {}) {
+                const {
+                    isTemplateNode = false,
+                    isReadOnly = false,
+                    highlightPlaceholders = false,
+                    scale = 1,
+                    containerElement = this.canvas,
+                    nodesMap = this.nodes
+                } = options;
+
                 const nodeElement = document.createElement('div');
                 nodeElement.className = 'node';
                 nodeElement.style.left = `${x}px`;
                 nodeElement.style.top = `${y}px`;
+                
+                if (scale !== 1) {
+                    nodeElement.style.transform = `scale(${scale})`;
+                    nodeElement.style.transformOrigin = 'top left';
+                }
                 
                 const nodeType = nodeData.type || 'unknown';
                 nodeElement.classList.add(`node-type-${nodeType}`);
@@ -940,14 +960,23 @@
                 nodeElement.style.setProperty('--node-color', color);
 
                 let content;
-                if (nodeType === 'dynamic_template') {
+                if (nodeType === 'dynamic_template' && !isTemplateNode) {
+                    // Dynamic template in overview - render with mini-graphs
                     content = this.formatDynamicTemplateNode(nodeId, nodeData, schema);
                 } else {
-                    const properties = this.formatNodeProperties(nodeData, schema);
+                    // Regular node or template node
+                    const properties = highlightPlaceholders 
+                        ? this.formatTemplateNodeProperties(nodeData, schema)
+                        : this.formatNodeProperties(nodeData, schema);
+                    
+                    const displayName = highlightPlaceholders 
+                        ? this.highlightPlaceholders(nodeId)
+                        : nodeId;
+                    
                     content = `
                         <div class="node-header">
                             <div class="node-icon">${icon}</div>
-                            <div class="node-name">${nodeId}</div>
+                            <div class="node-name">${displayName}</div>
                         </div>
                         <div class="node-body">
                             ${properties}
@@ -957,18 +986,67 @@
 
                 nodeElement.innerHTML = content;
 
-                nodeElement.addEventListener('dblclick', () => this.editNode(nodeId));
-                nodeElement.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.selectNode(nodeElement);
-                });
+                // Add event listeners only if not read-only
+                if (!isReadOnly) {
+                    if (isTemplateNode) {
+                        nodeElement.addEventListener('dblclick', () => this.editTemplateNode(nodeId));
+                        nodeElement.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            this.selectTemplateNode(nodeElement);
+                        });
+                    } else {
+                        nodeElement.addEventListener('dblclick', () => this.editNode(nodeId));
+                        nodeElement.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            this.selectNode(nodeElement);
+                        });
+                    }
+                }
 
-                this.canvas.appendChild(nodeElement);
-                this.nodes.set(nodeId, {
+                containerElement.appendChild(nodeElement);
+                nodesMap.set(nodeId, {
                     element: nodeElement,
                     data: { ...nodeData },
                     position: { x, y }
                 });
+
+                return nodeElement;
+            }
+
+            // Update existing methods to use unified renderer
+            createNode(nodeId, nodeData, x, y) {
+                return this.createUnifiedNode(nodeId, nodeData, x, y, {
+                    isTemplateNode: false,
+                    isReadOnly: false,
+                    highlightPlaceholders: false
+                });
+            }
+
+            createTemplateNode(nodeId, nodeData, x, y) {
+                return this.createUnifiedNode(nodeId, nodeData, x, y, {
+                    isTemplateNode: true,
+                    isReadOnly: false,
+                    highlightPlaceholders: true,
+                    containerElement: this.templateCanvas,
+                    nodesMap: this.templateNodes
+                });
+            }
+
+            createMiniGraphNode(nodeId, nodeData, x, y, scale = 0.6) {
+                const miniContainer = document.createElement('div');
+                miniContainer.style.position = 'relative';
+                miniContainer.style.display = 'inline-block';
+                
+                this.createUnifiedNode(nodeId, nodeData, x, y, {
+                    isTemplateNode: false,
+                    isReadOnly: true,
+                    highlightPlaceholders: false,
+                    scale: scale,
+                    containerElement: miniContainer,
+                    nodesMap: new Map() // Temporary map for mini-graph nodes
+                });
+                
+                return miniContainer;
             }
 
             getNodeColor(nodeType) {
@@ -1356,40 +1434,189 @@
                 this.connectionsContainer.innerHTML = '';
                 this.connections = [];
 
-                // First, collect all template-generated nodes for connection resolution
-                const templateGeneratedNodes = this.collectTemplateGeneratedNodes();
+                // Get current configuration data
+                const configData = this.getCurrentConfigData();
 
+                // First, create all internal connections (non-template nodes)
                 for (const [nodeId, nodeInfo] of this.nodes) {
                     const nodeData = nodeInfo.data;
                     
+                    // Skip dynamic template nodes - they'll be handled separately
+                    if (nodeData.type === 'dynamic_template') continue;
+                    
                     // Handle single input
                     if (nodeData.input) {
-                        // Check if input exists as a regular node
-                        if (this.nodes.has(nodeData.input)) {
-                            this.createConnection(nodeData.input, nodeId);
-                        }
-                        // Check if input is a template-generated node
-                        else if (templateGeneratedNodes.has(nodeData.input)) {
-                            this.createTemplateConnection(nodeData.input, nodeId, templateGeneratedNodes);
-                        }
+                        this.createConnectionLine(nodeData.input, nodeId, 'internal');
                     }
-
+                    
                     // Handle multiple inputs
-                    if (nodeData.inputs && Array.isArray(nodeData.inputs)) {
-                        nodeData.inputs.forEach(inputId => {
-                            if (inputId) {
-                                // Check if input exists as a regular node
-                                if (this.nodes.has(inputId)) {
-                                    this.createConnection(inputId, nodeId);
-                                }
-                                // Check if input is a template-generated node  
-                                else if (templateGeneratedNodes.has(inputId)) {
-                                    this.createTemplateConnection(inputId, nodeId, templateGeneratedNodes);
-                                }
-                            }
+                    if (Array.isArray(nodeData.inputs)) {
+                        nodeData.inputs.forEach(input => {
+                            this.createConnectionLine(input, nodeId, 'internal');
                         });
                     }
                 }
+
+                // Then, handle template-related connections
+                this.createTemplateConnections(configData);
+            }
+
+            createTemplateConnections(configData) {
+                // Find all dynamic template nodes and their generated instances
+                Object.entries(configData).forEach(([templateNodeId, templateNodeData]) => {
+                    if (templateNodeData.type !== 'dynamic_template' || !templateNodeData.template || !templateNodeData.instances) {
+                        return;
+                    }
+
+                    const templateNodes = templateNodeData.template;
+                    const instances = templateNodeData.instances;
+
+                    // For each instance, create resolved nodes and check for external connections
+                    instances.forEach((instance, instanceIndex) => {
+                        // Create mapping of template nodes to resolved names for this instance
+                        const resolvedNodeIds = new Map();
+                        
+                        Object.keys(templateNodes).forEach(originalNodeId => {
+                            let resolvedNodeId = originalNodeId;
+                            Object.entries(instance).forEach(([variable, value]) => {
+                                const placeholder = `{${variable}}`;
+                                resolvedNodeId = resolvedNodeId.replace(
+                                    new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), 
+                                    String(value)
+                                );
+                            });
+                            resolvedNodeIds.set(originalNodeId, resolvedNodeId);
+                        });
+
+                        // Check for external connections TO template nodes
+                        Object.entries(configData).forEach(([externalNodeId, externalNodeData]) => {
+                            if (externalNodeData.type === 'dynamic_template') return;
+                            
+                            // Check if external node inputs reference template-generated nodes
+                            const checkInput = (inputId) => {
+                                const resolvedId = resolvedNodeIds.get(inputId);
+                                if (resolvedId) {
+                                    // External node references a template-generated node
+                                    this.createExternalTemplateConnection(templateNodeId, externalNodeId, 'template-to-external');
+                                    return true;
+                                }
+                                return false;
+                            };
+
+                            if (externalNodeData.input) {
+                                checkInput(externalNodeData.input);
+                            }
+                            if (Array.isArray(externalNodeData.inputs)) {
+                                externalNodeData.inputs.forEach(checkInput);
+                            }
+                        });
+
+                        // Check for external connections FROM template nodes
+                        Object.entries(templateNodes).forEach(([templateKey, templateNodeData]) => {
+                            const checkTemplateInput = (inputId) => {
+                                // Check if template node references external node
+                                if (configData[inputId] && configData[inputId].type !== 'dynamic_template') {
+                                    this.createExternalTemplateConnection(inputId, templateNodeId, 'external-to-template');
+                                }
+                            };
+
+                            if (templateNodeData.input) {
+                                checkTemplateInput(templateNodeData.input);
+                            }
+                            if (Array.isArray(templateNodeData.inputs)) {
+                                templateNodeData.inputs.forEach(checkTemplateInput);
+                            }
+                        });
+                    });
+                });
+            }
+
+            createExternalTemplateConnection(fromNodeId, toNodeId, connectionType) {
+                const fromNode = this.nodes.get(fromNodeId);
+                const toNode = this.nodes.get(toNodeId);
+                
+                if (!fromNode || !toNode) return;
+                
+                // Avoid duplicate connections
+                const connectionKey = `${fromNodeId}-${toNodeId}-${connectionType}`;
+                if (this.connections.some(c => c.key === connectionKey)) return;
+                
+                const fromRect = fromNode.element.getBoundingClientRect();
+                const toRect = toNode.element.getBoundingClientRect();
+                const canvasRect = this.canvas.getBoundingClientRect();
+                
+                // Calculate connection points
+                let fromX, fromY, toX, toY;
+                
+                if (connectionType === 'external-to-template') {
+                    // From external node to template node
+                    fromX = fromRect.left - canvasRect.left + fromRect.width;
+                    fromY = fromRect.top - canvasRect.top + fromRect.height / 2;
+                    toX = toRect.left - canvasRect.left;
+                    toY = toRect.top - canvasRect.top + toRect.height / 2;
+                } else {
+                    // From template node to external node
+                    fromX = fromRect.left - canvasRect.left + fromRect.width;
+                    fromY = fromRect.top - canvasRect.top + fromRect.height / 2;
+                    toX = toRect.left - canvasRect.left;
+                    toY = toRect.top - canvasRect.top + toRect.height / 2;
+                }
+                
+                // Create the connection path with distinctive styling for external connections
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                const d = `M${fromX},${fromY} L${toX},${toY}`;
+                path.setAttribute('d', d);
+                path.setAttribute('stroke', '#dc3545'); // Red for external connections
+                path.setAttribute('stroke-width', '2');
+                path.setAttribute('stroke-dasharray', '5,5'); // Dashed line for external connections
+                path.setAttribute('fill', 'none');
+                
+                // Add arrow marker
+                const markerId = `external-arrow-${fromNodeId}-${toNodeId}`;
+                this.createArrowMarker(markerId, '#dc3545');
+                path.setAttribute('marker-end', `url(#${markerId})`);
+                
+                this.connectionsContainer.appendChild(path);
+                this.connections.push({ 
+                    from: fromNodeId, 
+                    to: toNodeId, 
+                    element: path, 
+                    key: connectionKey,
+                    type: connectionType 
+                });
+            }
+
+            createConnectionLine(fromNodeId, toNodeId, connectionType = 'internal') {
+                const fromNode = this.nodes.get(fromNodeId);
+                const toNode = this.nodes.get(toNodeId);
+                
+                if (!fromNode || !toNode) return;
+                
+                this.createConnection(fromNodeId, toNodeId);
+            }
+
+            createArrowMarker(markerId, color = '#6c757d') {
+                let defs = this.connectionsContainer.querySelector('defs');
+                if (!defs) {
+                    defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                    this.connectionsContainer.appendChild(defs);
+                }
+                
+                const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+                marker.setAttribute('id', markerId);
+                marker.setAttribute('markerWidth', '10');
+                marker.setAttribute('markerHeight', '6');
+                marker.setAttribute('refX', '9');
+                marker.setAttribute('refY', '3');
+                marker.setAttribute('orient', 'auto');
+                marker.setAttribute('markerUnits', 'strokeWidth');
+                
+                const arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                arrowPath.setAttribute('d', 'M0,0 L0,6 L9,3 z');
+                arrowPath.setAttribute('fill', color);
+                
+                marker.appendChild(arrowPath);
+                defs.appendChild(marker);
             }
 
             collectTemplateGeneratedNodes() {
@@ -1986,9 +2213,84 @@
             }
 
             updateTemplateConnections() {
-                // Implementation for template connections - simplified for now
-                // This would need to be implemented similarly to updateConnections()
-                // but for the template canvas
+                if (!this.templateConnections) return;
+                
+                this.templateConnections.innerHTML = '';
+                
+                // Get template node data for the current template
+                const configData = this.getCurrentConfigData();
+                const templateData = configData[this.currentTemplateNodeId];
+                if (!templateData || !templateData.template) return;
+                
+                const templateNodes = templateData.template;
+                
+                // Use the same connection logic as main canvas but for template nodes
+                for (const [nodeId, nodeData] of Object.entries(templateNodes)) {
+                    // Handle single input
+                    if (nodeData.input) {
+                        this.createTemplateConnectionLine(nodeData.input, nodeId);
+                    }
+                    
+                    // Handle multiple inputs
+                    if (Array.isArray(nodeData.inputs)) {
+                        nodeData.inputs.forEach(input => {
+                            this.createTemplateConnectionLine(input, nodeId);
+                        });
+                    }
+                }
+            }
+
+            createTemplateConnectionLine(fromNodeId, toNodeId) {
+                const fromNode = this.templateNodes.get(fromNodeId);
+                const toNode = this.templateNodes.get(toNodeId);
+                
+                if (!fromNode || !toNode) return;
+                
+                const fromRect = fromNode.element.getBoundingClientRect();
+                const toRect = toNode.element.getBoundingClientRect();
+                const canvasRect = this.templateCanvas.getBoundingClientRect();
+                
+                // Calculate connection points
+                const fromX = fromRect.left - canvasRect.left + fromRect.width;
+                const fromY = fromRect.top - canvasRect.top + fromRect.height / 2;
+                const toX = toRect.left - canvasRect.left;
+                const toY = toRect.top - canvasRect.top + toRect.height / 2;
+                
+                // Create the connection path
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                const d = `M${fromX},${fromY} L${toX},${toY}`;
+                path.setAttribute('d', d);
+                path.setAttribute('stroke', '#6c757d');
+                path.setAttribute('stroke-width', '2');
+                path.setAttribute('fill', 'none');
+                
+                // Add arrow marker
+                const markerId = `template-arrow-${fromNodeId}-${toNodeId}`;
+                
+                let defs = this.templateConnections.querySelector('defs');
+                if (!defs) {
+                    defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                    this.templateConnections.appendChild(defs);
+                }
+                
+                const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+                marker.setAttribute('id', markerId);
+                marker.setAttribute('markerWidth', '10');
+                marker.setAttribute('markerHeight', '6');
+                marker.setAttribute('refX', '9');
+                marker.setAttribute('refY', '3');
+                marker.setAttribute('orient', 'auto');
+                marker.setAttribute('markerUnits', 'strokeWidth');
+                
+                const arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                arrowPath.setAttribute('d', 'M0,0 L0,6 L9,3 z');
+                arrowPath.setAttribute('fill', '#6c757d');
+                
+                marker.appendChild(arrowPath);
+                defs.appendChild(marker);
+                
+                path.setAttribute('marker-end', `url(#${markerId})`);
+                this.templateConnections.appendChild(path);
             }
 
             selectTemplateNode(nodeElement) {
