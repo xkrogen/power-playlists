@@ -163,6 +163,13 @@
             stroke-dasharray: 5, 5;
         }
 
+        .template-connection {
+            stroke: #e74c3c;
+            stroke-width: 2;
+            stroke-dasharray: 8, 4;
+            fill: none;
+        }
+
         .connection-arrow {
             fill: #6b7280;
         }
@@ -487,9 +494,32 @@
             pointer-events: none;
         }
 
-        /* Dynamic template nodes need more width */
+        /* Dynamic template nodes need variable width based on content */
         .node.node-type-dynamic_template {
-            min-width: 340px;
+            min-width: 400px;
+            max-width: none;
+            width: auto;
+        }
+
+        .node.node-type-dynamic_template .node-body {
+            overflow: visible;
+        }
+
+        .template-instance-full {
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .template-instance-node {
+            transition: all 0.2s ease;
+        }
+
+        .template-instance-node:hover {
+            transform: scale(1.05);
+            z-index: 10;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
 
         .hidden {
@@ -1002,137 +1032,270 @@
                 const instances = nodeData.instances || [];
                 const templateNodes = nodeData.template || {};
                 
-                // Create detailed mini-graphs for each instance
-                const miniGraphs = instances.slice(0, 2).map((instance, index) => {
-                    const instanceName = this.getInstanceDisplayName(instance);
-                    const miniGraphContent = this.createMiniGraph(templateNodes, instance);
-                    
-                    return `
-                        <div class="mini-graph-container" style="display: inline-block; margin: 4px; padding: 6px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; vertical-align: top; width: 140px;">
-                            <div style="font-weight: bold; margin-bottom: 4px; font-size: 11px; text-align: center; color: #495057;">${instanceName}</div>
-                            <div class="mini-graph-content" style="position: relative; height: 60px; overflow: hidden;">
-                                ${miniGraphContent}
-                            </div>
-                        </div>
-                    `;
-                }).join('');
+                // Calculate total layout dimensions
+                const templateNodeCount = Object.keys(templateNodes).length;
+                const instanceCount = instances.length;
                 
-                const moreInstances = instances.length > 2 ? `<div style="font-size: 10px; color: #666; margin-top: 4px; text-align: center;">+${instances.length - 2} more instances...</div>` : '';
+                // Layout parameters for full-sized nodes
+                const fullNodeWidth = 180;
+                const fullNodeHeight = 80;
+                const nodeSpacing = { x: 200, y: 100 };
+                const instanceSpacing = { x: 50, y: 50 };
+                
+                // Calculate template node dimensions
+                const nodesPerRow = Math.max(1, Math.min(4, templateNodeCount));
+                const templateRows = Math.ceil(templateNodeCount / nodesPerRow);
+                const templateWidth = nodesPerRow * fullNodeWidth + (nodesPerRow - 1) * nodeSpacing.x;
+                const templateHeight = templateRows * fullNodeHeight + (templateRows - 1) * nodeSpacing.y;
+                
+                // Calculate overall dimensions
+                const instanceRows = Math.ceil(instanceCount / 2);
+                const totalWidth = Math.max(400, templateWidth + 100);
+                const totalHeight = instanceRows * (templateHeight + instanceSpacing.y) + 100;
+                
+                // Generate all resolved instances
+                const resolvedInstances = this.generateResolvedInstances(templateNodes, instances);
                 
                 return `
                     <div class="node-header">
                         <div class="node-icon">${icon}</div>
                         <div class="node-name">${nodeId}</div>
                     </div>
-                    <div class="node-body" style="width: 320px;">
-                        <div class="node-property"><strong>Template:</strong> ${Object.keys(templateNodes).length} nodes</div>
-                        <div class="node-property"><strong>Instances:</strong> ${instances.length}</div>
-                        <div style="margin-top: 8px; text-align: center;">
-                            ${miniGraphs}
-                            ${moreInstances}
+                    <div class="node-body" style="width: ${totalWidth}px; height: ${totalHeight}px; position: relative;">
+                        <div class="node-property"><strong>Template:</strong> ${templateNodeCount} nodes</div>
+                        <div class="node-property"><strong>Instances:</strong> ${instanceCount}</div>
+                        <div class="template-instances-container" style="margin-top: 16px; position: relative;">
+                            ${this.renderAllTemplateInstances(resolvedInstances, nodeId, totalWidth)}
                         </div>
-                        <div style="margin-top: 8px; font-size: 11px; color: #007acc; font-style: italic; text-align: center;">
+                        <div style="margin-top: 12px; font-size: 11px; color: #007acc; font-style: italic; text-align: center;">
                             Double-click to edit template
                         </div>
                     </div>
                 `;
             }
 
-            createMiniGraph(templateNodes, instance) {
-                const nodeEntries = Object.entries(templateNodes);
-                if (nodeEntries.length === 0) return '<div style="color: #666; font-size: 10px;">No nodes</div>';
+            generateResolvedInstances(templateNodes, instances) {
+                const resolved = [];
                 
-                let miniGraphSvg = '<svg width="130" height="55" style="position: absolute; top: 0; left: 0;">';
-                let miniGraphNodes = '';
-                
-                // Calculate positions for mini nodes
-                const nodeWidth = 20;
-                const nodeHeight = 12;
-                const spacing = 25;
-                let x = 5;
-                let y = 5;
-                
-                const positions = {};
-                
-                nodeEntries.forEach(([templateNodeId, templateNodeData], index) => {
-                    // Replace template variables with instance values
-                    let displayNodeId = templateNodeId;
-                    Object.entries(instance).forEach(([variable, value]) => {
-                        const placeholder = `{${variable}}`;
-                        displayNodeId = displayNodeId.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), String(value));
+                instances.forEach((instance, instanceIndex) => {
+                    const resolvedNodes = {};
+                    
+                    // Resolve each template node for this instance
+                    Object.entries(templateNodes).forEach(([templateNodeId, templateNodeData]) => {
+                        // Replace variables in node ID
+                        let resolvedId = templateNodeId;
+                        Object.entries(instance).forEach(([variable, value]) => {
+                            const placeholder = `{${variable}}`;
+                            resolvedId = resolvedId.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), String(value));
+                        });
+                        
+                        // Replace variables in node data
+                        const resolvedData = this.resolveTemplateVariablesInObject(templateNodeData, instance);
+                        
+                        resolvedNodes[resolvedId] = {
+                            ...resolvedData,
+                            originalTemplateId: templateNodeId,
+                            instanceIndex: instanceIndex
+                        };
                     });
                     
-                    // Truncate long names
-                    displayNodeId = displayNodeId.length > 8 ? displayNodeId.substring(0, 8) + '...' : displayNodeId;
-                    
-                    positions[templateNodeId] = { x, y };
-                    
-                    // Get node color based on type
-                    const nodeType = templateNodeData.type || 'unknown';
-                    const nodeColor = this.getMiniNodeColor(nodeType);
-                    
-                    // Create mini node
-                    miniGraphNodes += `
-                        <rect x="${x}" y="${y}" width="${nodeWidth}" height="${nodeHeight}" 
-                              fill="${nodeColor}" stroke="#666" stroke-width="0.5" rx="2"/>
-                        <text x="${x + nodeWidth/2}" y="${y + nodeHeight/2 + 2}" 
-                              text-anchor="middle" font-size="6" fill="white" font-weight="bold">
-                              ${this.getMiniNodeIcon(nodeType)}
-                        </text>
-                    `;
-                    
-                    // Position for next node
-                    x += spacing;
-                    if (x > 100) {
-                        x = 5;
-                        y += 18;
-                    }
+                    resolved.push({
+                        instance: instance,
+                        instanceIndex: instanceIndex,
+                        nodes: resolvedNodes
+                    });
                 });
                 
-                // Draw connections between mini nodes
-                let connections = '';
-                nodeEntries.forEach(([templateNodeId, templateNodeData]) => {
-                    const fromPos = positions[templateNodeId];
+                return resolved;
+            }
+
+            resolveTemplateVariablesInObject(obj, instance) {
+                if (typeof obj === 'string') {
+                    let resolved = obj;
+                    Object.entries(instance).forEach(([variable, value]) => {
+                        const placeholder = `{${variable}}`;
+                        resolved = resolved.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), String(value));
+                    });
+                    return resolved;
+                } else if (Array.isArray(obj)) {
+                    return obj.map(item => this.resolveTemplateVariablesInObject(item, instance));
+                } else if (obj !== null && typeof obj === 'object') {
+                    const resolved = {};
+                    Object.entries(obj).forEach(([key, value]) => {
+                        resolved[key] = this.resolveTemplateVariablesInObject(value, instance);
+                    });
+                    return resolved;
+                }
+                return obj;
+            }
+
+            renderAllTemplateInstances(resolvedInstances, templateNodeId, totalWidth) {
+                let html = '';
+                let currentY = 0;
+                
+                resolvedInstances.forEach((resolvedInstance, index) => {
+                    const instanceName = this.getInstanceDisplayName(resolvedInstance.instance);
+                    const instanceHeight = this.calculateInstanceHeight(resolvedInstance.nodes);
+                    
+                    html += `
+                        <div class="template-instance-full" style="position: absolute; top: ${currentY}px; left: 0; width: 100%; border: 2px solid #dee2e6; border-radius: 8px; background: #f8f9fa; padding: 12px; margin-bottom: 20px;">
+                            <div style="font-weight: bold; margin-bottom: 12px; font-size: 12px; color: #495057; text-align: center; border-bottom: 1px solid #dee2e6; padding-bottom: 8px;">
+                                Instance ${index + 1}: ${instanceName}
+                            </div>
+                            <div style="position: relative; min-height: ${instanceHeight}px;">
+                                ${this.renderInstanceNodes(resolvedInstance.nodes, resolvedInstance.instanceIndex, templateNodeId)}
+                            </div>
+                        </div>
+                    `;
+                    
+                    currentY += instanceHeight + 40; // Add spacing between instances
+                });
+                
+                return html;
+            }
+
+            calculateInstanceHeight(nodes) {
+                const nodeCount = Object.keys(nodes).length;
+                const nodesPerRow = Math.min(3, nodeCount);
+                const rows = Math.ceil(nodeCount / nodesPerRow);
+                return rows * 100 + Math.max(0, rows - 1) * 20 + 40; // Base height + spacing + padding
+            }
+
+            renderInstanceNodes(nodes, instanceIndex, templateNodeId) {
+                let html = '';
+                let svgConnections = '';
+                const nodePositions = {};
+                
+                // Layout nodes in a grid
+                const nodeEntries = Object.entries(nodes);
+                const nodesPerRow = Math.min(3, nodeEntries.length);
+                const nodeWidth = 160;
+                const nodeHeight = 80;
+                const spacing = { x: 180, y: 100 };
+                
+                // Render nodes
+                nodeEntries.forEach(([nodeId, nodeData], index) => {
+                    const row = Math.floor(index / nodesPerRow);
+                    const col = index % nodesPerRow;
+                    const x = col * spacing.x + 10;
+                    const y = row * spacing.y + 10;
+                    
+                    nodePositions[nodeId] = { x: x + nodeWidth/2, y: y + nodeHeight/2 };
+                    
+                    const nodeType = nodeData.type || 'unknown';
+                    const schema = this.nodeSchemas && this.nodeSchemas[nodeType];
+                    const nodeColor = schema ? schema.color : this.getNodeColor(nodeType);
+                    const nodeIcon = schema ? schema.icon : this.getNodeIcon(nodeType);
+                    
+                    // Format properties for display
+                    const properties = this.formatNodeProperties(nodeData, schema);
+                    
+                    html += `
+                        <div class="template-instance-node" style="position: absolute; left: ${x}px; top: ${y}px; width: ${nodeWidth}px; height: ${nodeHeight}px; background: white; border: 2px solid ${nodeColor}; border-radius: 6px; padding: 8px; font-size: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #eee; background: ${nodeColor}; color: white; margin: -8px -8px 6px -8px; padding: 6px 8px; border-top-left-radius: 4px; border-top-right-radius: 4px;">
+                                <span style="font-size: 12px;">${nodeIcon}</span>
+                                <span style="font-weight: bold; font-size: 10px;">${nodeId}</span>
+                            </div>
+                            <div style="font-size: 9px; max-height: 45px; overflow: hidden;">
+                                ${properties}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                // Generate connections between nodes
+                nodeEntries.forEach(([nodeId, nodeData]) => {
+                    const fromPos = nodePositions[nodeId];
                     if (!fromPos) return;
                     
-                    // Check for input connections
-                    let inputId = templateNodeData.input;
-                    if (inputId && positions[inputId]) {
-                        const toPos = positions[inputId];
-                        connections += `
-                            <line x1="${toPos.x + nodeWidth/2}" y1="${toPos.y + nodeHeight}" 
-                                  x2="${fromPos.x + nodeWidth/2}" y2="${fromPos.y}" 
-                                  stroke="#666" stroke-width="1" marker-end="url(#mini-arrow)"/>
-                        `;
+                    // Check for input connections within the template
+                    if (nodeData.input && nodePositions[nodeData.input]) {
+                        const toPos = nodePositions[nodeData.input];
+                        svgConnections += this.createSVGConnection(toPos, fromPos, 'internal');
                     }
                     
-                    // Check for multiple inputs
-                    if (templateNodeData.inputs && Array.isArray(templateNodeData.inputs)) {
-                        templateNodeData.inputs.forEach(inputId => {
-                            if (inputId && positions[inputId]) {
-                                const toPos = positions[inputId];
-                                connections += `
-                                    <line x1="${toPos.x + nodeWidth/2}" y1="${toPos.y + nodeHeight}" 
-                                          x2="${fromPos.x + nodeWidth/2}" y2="${fromPos.y}" 
-                                          stroke="#666" stroke-width="1" marker-end="url(#mini-arrow)"/>
-                                `;
+                    // Check for multiple inputs within the template
+                    if (nodeData.inputs && Array.isArray(nodeData.inputs)) {
+                        nodeData.inputs.forEach(inputId => {
+                            if (inputId && nodePositions[inputId]) {
+                                const toPos = nodePositions[inputId];
+                                svgConnections += this.createSVGConnection(toPos, fromPos, 'internal');
                             }
                         });
                     }
+                    
+                    // Check for external connections (inputs from outside the template)
+                    this.addExternalConnectionIndicators(nodeData, fromPos, instanceIndex, templateNodeId);
                 });
                 
-                // Add arrow marker definition
-                const arrowMarker = `
-                    <defs>
-                        <marker id="mini-arrow" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto" markerUnits="strokeWidth">
-                            <path d="M0,0 L0,4 L4,2 z" fill="#666"/>
-                        </marker>
-                    </defs>
+                // Calculate SVG dimensions
+                const maxX = Math.max(...Object.values(nodePositions).map(pos => pos.x)) + nodeWidth/2 + 20;
+                const maxY = Math.max(...Object.values(nodePositions).map(pos => pos.y)) + nodeHeight/2 + 20;
+                
+                return `
+                    ${html}
+                    <svg style="position: absolute; top: 0; left: 0; width: ${maxX}px; height: ${maxY}px; pointer-events: none; z-index: 1;">
+                        <defs>
+                            <marker id="instance-arrow-${instanceIndex}" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
+                                <path d="M0,0 L0,6 L6,3 z" fill="#666"/>
+                            </marker>
+                            <marker id="external-arrow-${instanceIndex}" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
+                                <path d="M0,0 L0,6 L6,3 z" fill="#e74c3c"/>
+                            </marker>
+                        </defs>
+                        ${svgConnections}
+                    </svg>
                 `;
+            }
+
+            createSVGConnection(fromPos, toPos, type) {
+                const markerType = type === 'external' ? 'external-arrow' : 'instance-arrow';
+                const strokeColor = type === 'external' ? '#e74c3c' : '#666';
+                const strokeWidth = type === 'external' ? '2' : '1.5';
                 
-                miniGraphSvg += arrowMarker + connections + miniGraphNodes + '</svg>';
+                // Create curved connection
+                const controlPoint1X = fromPos.x + (toPos.x - fromPos.x) * 0.5;
+                const controlPoint1Y = fromPos.y;
+                const controlPoint2X = toPos.x - (toPos.x - fromPos.x) * 0.5;
+                const controlPoint2Y = toPos.y;
                 
-                return miniGraphSvg;
+                return `
+                    <path d="M ${fromPos.x} ${fromPos.y} C ${controlPoint1X} ${controlPoint1Y} ${controlPoint2X} ${controlPoint2Y} ${toPos.x} ${toPos.y}"
+                          stroke="${strokeColor}" stroke-width="${strokeWidth}" fill="none" 
+                          marker-end="url(#${markerType}-${Math.floor(Math.random() * 10000)})"/>
+                `;
+            }
+
+            addExternalConnectionIndicators(nodeData, nodePos, instanceIndex, templateNodeId) {
+                // This method would be used to show external connections
+                // For now, we'll add visual indicators for external references
+                const configData = this.currentConfig?.data || this.currentConfig || {};
+                
+                // Check if input references external nodes
+                if (nodeData.input && !this.isTemplateInternalNode(nodeData.input, templateNodeId)) {
+                    // Add external connection indicator - this could be enhanced further
+                }
+                
+                if (nodeData.inputs && Array.isArray(nodeData.inputs)) {
+                    nodeData.inputs.forEach(inputId => {
+                        if (inputId && !this.isTemplateInternalNode(inputId, templateNodeId)) {
+                            // Add external connection indicator
+                        }
+                    });
+                }
+            }
+
+            isTemplateInternalNode(nodeId, templateNodeId) {
+                // Check if the node ID corresponds to a template-internal node
+                const configData = this.currentConfig?.data || this.currentConfig || {};
+                const templateData = configData[templateNodeId];
+                if (!templateData || !templateData.template) return false;
+                
+                // Check if it's a template node pattern
+                return Object.keys(templateData.template).some(templateKey => {
+                    // This is a simplified check - in practice, you'd need to resolve variables
+                    return templateKey.includes('{') || nodeId.includes(templateKey.replace(/\{[^}]+\}/g, ''));
+                });
             }
 
             getMiniNodeColor(nodeType) {
@@ -1193,23 +1356,135 @@
                 this.connectionsContainer.innerHTML = '';
                 this.connections = [];
 
+                // First, collect all template-generated nodes for connection resolution
+                const templateGeneratedNodes = this.collectTemplateGeneratedNodes();
+
                 for (const [nodeId, nodeInfo] of this.nodes) {
                     const nodeData = nodeInfo.data;
                     
                     // Handle single input
-                    if (nodeData.input && this.nodes.has(nodeData.input)) {
-                        this.createConnection(nodeData.input, nodeId);
+                    if (nodeData.input) {
+                        // Check if input exists as a regular node
+                        if (this.nodes.has(nodeData.input)) {
+                            this.createConnection(nodeData.input, nodeId);
+                        }
+                        // Check if input is a template-generated node
+                        else if (templateGeneratedNodes.has(nodeData.input)) {
+                            this.createTemplateConnection(nodeData.input, nodeId, templateGeneratedNodes);
+                        }
                     }
 
                     // Handle multiple inputs
                     if (nodeData.inputs && Array.isArray(nodeData.inputs)) {
                         nodeData.inputs.forEach(inputId => {
-                            if (inputId && this.nodes.has(inputId)) {
-                                this.createConnection(inputId, nodeId);
+                            if (inputId) {
+                                // Check if input exists as a regular node
+                                if (this.nodes.has(inputId)) {
+                                    this.createConnection(inputId, nodeId);
+                                }
+                                // Check if input is a template-generated node  
+                                else if (templateGeneratedNodes.has(inputId)) {
+                                    this.createTemplateConnection(inputId, nodeId, templateGeneratedNodes);
+                                }
                             }
                         });
                     }
                 }
+            }
+
+            collectTemplateGeneratedNodes() {
+                const templateNodes = new Map();
+                const configData = this.currentConfig?.data || this.currentConfig || {};
+                
+                // Find all dynamic template nodes and their generated instances
+                Object.entries(configData).forEach(([nodeId, nodeData]) => {
+                    if (nodeData.type === 'dynamic_template' && nodeData.template && nodeData.instances) {
+                        // For each instance, generate the resolved node IDs
+                        nodeData.instances.forEach((instance, instanceIndex) => {
+                            Object.keys(nodeData.template).forEach(templateNodeId => {
+                                // Resolve template variables in the node ID
+                                let resolvedNodeId = templateNodeId;
+                                Object.entries(instance).forEach(([variable, value]) => {
+                                    const placeholder = `{${variable}}`;
+                                    resolvedNodeId = resolvedNodeId.replace(
+                                        new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), 
+                                        String(value)
+                                    );
+                                });
+                                
+                                templateNodes.set(resolvedNodeId, {
+                                    templateNodeId: nodeId,
+                                    instanceIndex: instanceIndex,
+                                    originalTemplateKey: templateNodeId
+                                });
+                            });
+                        });
+                    }
+                });
+                
+                return templateNodes;
+            }
+
+            createTemplateConnection(fromNodeId, toNodeId, templateGeneratedNodes) {
+                const templateInfo = templateGeneratedNodes.get(fromNodeId);
+                if (!templateInfo) return;
+                
+                // Find the template node element
+                const templateNode = this.nodes.get(templateInfo.templateNodeId);
+                if (!templateNode) return;
+                
+                const toNode = this.nodes.get(toNodeId);
+                if (!toNode) return;
+                
+                // Get the positions
+                const templateRect = templateNode.element.getBoundingClientRect();
+                const toRect = toNode.element.getBoundingClientRect();
+                const canvasRect = this.canvas.getBoundingClientRect();
+                
+                // Calculate connection points - from template node edge to target node
+                const fromX = templateRect.left - canvasRect.left + templateRect.width;
+                const fromY = templateRect.top - canvasRect.top + templateRect.height / 2;
+                const toX = toRect.left - canvasRect.left;
+                const toY = toRect.top - canvasRect.top + toRect.height / 2;
+                
+                // Create the connection path
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                const controlPoint1X = fromX + (toX - fromX) * 0.5;
+                const controlPoint1Y = fromY;
+                const controlPoint2X = toX - (toX - fromX) * 0.5;
+                const controlPoint2Y = toY;
+                
+                const pathData = `M ${fromX} ${fromY} C ${controlPoint1X} ${controlPoint1Y} ${controlPoint2X} ${controlPoint2Y} ${toX} ${toY}`;
+                
+                path.setAttribute("d", pathData);
+                path.setAttribute("class", "connection-line template-connection");
+                path.setAttribute("stroke", "#e74c3c"); // Different color for template connections
+                path.setAttribute("stroke-width", "2");
+                path.setAttribute("stroke-dasharray", "5,5"); // Dashed line to indicate template connection
+                
+                // Add arrow marker for template connections
+                const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+                const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+                marker.setAttribute("id", `template-arrow-${fromNodeId}-${toNodeId}`);
+                marker.setAttribute("markerWidth", "10");
+                marker.setAttribute("markerHeight", "10");
+                marker.setAttribute("refX", "8");
+                marker.setAttribute("refY", "3");
+                marker.setAttribute("orient", "auto");
+                marker.setAttribute("markerUnits", "strokeWidth");
+                
+                const arrowPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                arrowPath.setAttribute("d", "M0,0 L0,6 L9,3 z");
+                arrowPath.setAttribute("fill", "#e74c3c");
+                
+                marker.appendChild(arrowPath);
+                defs.appendChild(marker);
+                this.connectionsContainer.appendChild(defs);
+                
+                path.setAttribute("marker-end", `url(#template-arrow-${fromNodeId}-${toNodeId})`);
+                this.connectionsContainer.appendChild(path);
+                
+                this.connections.push({ from: fromNodeId, to: toNodeId, element: path, type: 'template' });
             }
 
             createConnection(fromNodeId, toNodeId) {
