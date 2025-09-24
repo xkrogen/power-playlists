@@ -1985,8 +1985,182 @@
             }
 
             editTemplateNode(nodeId) {
-                // For now, just show a simple alert - could be expanded to edit template nodes
-                alert(`Editing template node: ${nodeId}\nThis feature can be expanded to allow editing template node properties.`);
+                // Get the template node data
+                const configData = this.currentConfig?.data || this.currentConfig || {};
+                const templateData = configData[this.currentTemplateNodeId];
+                if (!templateData || !templateData.template) return;
+                
+                const templateNodeData = templateData.template[nodeId];
+                if (!templateNodeData) return;
+                
+                // Create a modal dialog for editing the template node
+                this.showTemplateNodeEditModal(nodeId, templateNodeData);
+            }
+
+            showTemplateNodeEditModal(nodeId, nodeData) {
+                // Create modal HTML
+                const modal = document.createElement('div');
+                modal.className = 'modal';
+                modal.id = 'templateNodeEditModal';
+                modal.innerHTML = `
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2 class="modal-title">Edit Template Node: ${nodeId}</h2>
+                        </div>
+                        <div id="templateNodeForm">
+                            ${this.generateTemplateNodeForm(nodeData)}
+                        </div>
+                        <div class="form-actions">
+                            <button class="btn btn-secondary" id="cancelTemplateNodeBtn">Cancel</button>
+                            <button class="btn" id="saveTemplateNodeBtn">Save</button>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+                
+                // Add event listeners
+                document.getElementById('cancelTemplateNodeBtn').addEventListener('click', () => {
+                    this.closeTemplateNodeEditModal();
+                });
+                
+                document.getElementById('saveTemplateNodeBtn').addEventListener('click', () => {
+                    this.saveTemplateNodeChanges(nodeId);
+                });
+                
+                // Store current editing context
+                this.currentEditingTemplateNode = nodeId;
+                this.currentEditingTemplateNodeData = { ...nodeData };
+            }
+
+            generateTemplateNodeForm(nodeData) {
+                let html = '';
+                
+                // Add type field (read-only for now, but could be made editable)
+                html += `
+                    <div class="form-group">
+                        <label class="form-label">Type:</label>
+                        <select class="form-input" name="type" onchange="editor.onTemplateNodeTypeChange(this.value)">
+                `;
+                
+                // Populate node type options
+                if (this.nodeSchemas) {
+                    Object.entries(this.nodeSchemas).forEach(([type, schema]) => {
+                        const selected = nodeData.type === type ? 'selected' : '';
+                        html += `<option value="${type}" ${selected}>${schema.icon} ${schema.name}</option>`;
+                    });
+                }
+                
+                html += `
+                        </select>
+                    </div>
+                `;
+                
+                // Add property fields based on the node type and current data
+                Object.entries(nodeData).forEach(([key, value]) => {
+                    if (key === 'type') return; // Already handled above
+                    
+                    const isArray = Array.isArray(value);
+                    const displayValue = isArray ? value.join(', ') : String(value);
+                    
+                    html += `
+                        <div class="form-group">
+                            <label class="form-label">${key}:</label>
+                            ${isArray ? 
+                                `<input class="form-input" name="${key}" value="${displayValue}" type="text" placeholder="Comma-separated values">` :
+                                `<input class="form-input" name="${key}" value="${displayValue}" type="text">`
+                            }
+                        </div>
+                    `;
+                });
+                
+                // Add button to add new properties
+                html += `
+                    <div class="form-group">
+                        <button type="button" class="btn btn-secondary" onclick="editor.addTemplateNodeProperty()">Add Property</button>
+                    </div>
+                `;
+                
+                return html;
+            }
+
+            onTemplateNodeTypeChange(newType) {
+                // Update the form fields based on the new node type
+                const schema = this.nodeSchemas && this.nodeSchemas[newType];
+                if (schema) {
+                    // Could add logic here to update form fields based on schema
+                    // For now, just update the type
+                    this.currentEditingTemplateNodeData.type = newType;
+                }
+            }
+
+            addTemplateNodeProperty() {
+                const form = document.getElementById('templateNodeForm');
+                const newPropertyDiv = document.createElement('div');
+                newPropertyDiv.className = 'form-group';
+                newPropertyDiv.innerHTML = `
+                    <label class="form-label">
+                        <input type="text" class="form-input" placeholder="Property name" style="width: 120px; margin-right: 8px;">
+                    </label>
+                    <input class="form-input" type="text" placeholder="Property value" style="width: 200px;">
+                    <button type="button" class="btn btn-secondary" onclick="this.parentElement.remove()" style="margin-left: 8px;">Remove</button>
+                `;
+                
+                // Insert before the "Add Property" button
+                const addButton = form.querySelector('button[onclick*="addTemplateNodeProperty"]').parentElement;
+                form.insertBefore(newPropertyDiv, addButton);
+            }
+
+            saveTemplateNodeChanges(nodeId) {
+                const form = document.getElementById('templateNodeForm');
+                const formData = new FormData(form);
+                const updatedData = {};
+                
+                // Get all form inputs
+                const inputs = form.querySelectorAll('input, select');
+                inputs.forEach(input => {
+                    if (input.name) {
+                        let value = input.value;
+                        
+                        // Handle array values (comma-separated)
+                        if (input.placeholder && input.placeholder.includes('Comma-separated')) {
+                            value = value.split(',').map(v => v.trim()).filter(v => v);
+                        }
+                        
+                        updatedData[input.name] = value;
+                    }
+                });
+                
+                // Handle custom properties
+                const customGroups = form.querySelectorAll('.form-group');
+                customGroups.forEach(group => {
+                    const nameInput = group.querySelector('input[placeholder="Property name"]');
+                    const valueInput = group.querySelector('input[placeholder="Property value"]');
+                    if (nameInput && valueInput && nameInput.value && valueInput.value) {
+                        updatedData[nameInput.value] = valueInput.value;
+                    }
+                });
+                
+                // Update the template node data
+                const configData = this.currentConfig?.data || this.currentConfig || {};
+                const templateData = configData[this.currentTemplateNodeId];
+                if (templateData && templateData.template) {
+                    templateData.template[nodeId] = updatedData;
+                    
+                    // Refresh the template view
+                    this.enterTemplateView(this.currentTemplateNodeId);
+                }
+                
+                this.closeTemplateNodeEditModal();
+            }
+
+            closeTemplateNodeEditModal() {
+                const modal = document.getElementById('templateNodeEditModal');
+                if (modal) {
+                    modal.remove();
+                }
+                this.currentEditingTemplateNode = null;
+                this.currentEditingTemplateNodeData = null;
             }
 
             exitTemplateView() {

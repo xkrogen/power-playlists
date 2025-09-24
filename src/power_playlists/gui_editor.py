@@ -540,7 +540,11 @@ class ConfigurationRequestHandler(BaseHTTPRequestHandler):
             node_id = request_data.get("nodeId")
             config_data = request_data.get("configData", {})
 
-            if not node_id or node_id not in config_data:
+            if not node_id:
+                self._send_json_response(400, {"error": "Missing node ID"})
+                return
+
+            if node_id not in config_data:
                 self._send_json_response(400, {"error": "Invalid node ID"})
                 return
 
@@ -549,8 +553,17 @@ class ConfigurationRequestHandler(BaseHTTPRequestHandler):
                 self._send_json_response(400, {"error": "Node is not a dynamic template"})
                 return
 
+            # Handle newly created template nodes with missing properties
             template_nodes = node_data.get("template", {})
             instances = node_data.get("instances", [])
+
+            # If template is empty, provide a basic default structure
+            if not template_nodes:
+                template_nodes = {"{name} Example": {"type": "playlist", "uri": "{playlist_uri}"}}
+
+            # If instances is empty, provide a basic default instance
+            if not instances:
+                instances = [{"name": "Default", "playlist_uri": "spotify:playlist:example"}]
 
             # Extract variables from the first instance (if available)
             variables = []
