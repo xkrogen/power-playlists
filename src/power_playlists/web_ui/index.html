@@ -1798,12 +1798,15 @@
                 try {
                     this.currentTemplateNodeId = nodeId;
                     
+                    // Get the current configuration and ensure it includes the latest node data
+                    const configData = this.getCurrentConfigData();
+                    
                     const response = await fetch('/api/template/enter', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
                             nodeId: nodeId,
-                            configData: this.currentConfig.data || this.currentConfig
+                            configData: configData
                         })
                     });
 
@@ -1817,6 +1820,20 @@
                 } catch (error) {
                     this.showError(`Error entering template: ${error.message}`);
                 }
+            }
+
+            getCurrentConfigData() {
+                // Start with existing configuration
+                const baseConfig = this.currentConfig?.data || this.currentConfig || {};
+                
+                // Update with current node data to ensure newly created nodes are included
+                const currentData = {};
+                this.nodes.forEach((nodeInfo, nodeId) => {
+                    currentData[nodeId] = { ...nodeInfo.data };
+                });
+                
+                // Merge base configuration with current node data
+                return { ...baseConfig, ...currentData };
             }
 
             showTemplateView(nodeId, templateData) {
