@@ -1488,36 +1488,58 @@
                             resolvedNodeIds.set(originalNodeId, resolvedNodeId);
                         });
 
-                        // Check for external connections TO template nodes
+                        // Check for external connections TO template-generated nodes
                         Object.entries(configData).forEach(([externalNodeId, externalNodeData]) => {
                             if (externalNodeData.type === 'dynamic_template') return;
                             
                             // Check if external node inputs reference template-generated nodes
-                            const checkInput = (inputId) => {
-                                const resolvedId = resolvedNodeIds.get(inputId);
-                                if (resolvedId) {
-                                    // External node references a template-generated node
-                                    this.createExternalTemplateConnection(templateNodeId, externalNodeId, 'template-to-external');
-                                    return true;
+                            const checkExternalInput = (inputId) => {
+                                // Check if this input matches any resolved template node ID
+                                for (const [originalId, resolvedId] of resolvedNodeIds) {
+                                    if (inputId === resolvedId) {
+                                        // External node references a template-generated node
+                                        this.createExternalTemplateConnection(templateNodeId, externalNodeId, 'template-to-external');
+                                        return true;
+                                    }
                                 }
                                 return false;
                             };
 
+                            // Check single input
                             if (externalNodeData.input) {
-                                checkInput(externalNodeData.input);
+                                checkExternalInput(externalNodeData.input);
                             }
+                            
+                            // Check multiple inputs
                             if (Array.isArray(externalNodeData.inputs)) {
-                                externalNodeData.inputs.forEach(checkInput);
+                                externalNodeData.inputs.forEach(checkExternalInput);
+                            }
+                            
+                            // Check input_nodes (for combine_sort_dedup_output)
+                            if (Array.isArray(externalNodeData.input_nodes)) {
+                                externalNodeData.input_nodes.forEach(checkExternalInput);
                             }
                         });
 
-                        // Check for external connections FROM template nodes
+                        // Check for external connections FROM template nodes (template nodes referencing external nodes)
                         Object.entries(templateNodes).forEach(([templateKey, templateNodeData]) => {
                             const checkTemplateInput = (inputId) => {
-                                // Check if template node references external node
-                                if (configData[inputId] && configData[inputId].type !== 'dynamic_template') {
-                                    this.createExternalTemplateConnection(inputId, templateNodeId, 'external-to-template');
+                                // Resolve the input ID with instance variables
+                                let resolvedInputId = inputId;
+                                Object.entries(instance).forEach(([variable, value]) => {
+                                    const placeholder = `{${variable}}`;
+                                    resolvedInputId = resolvedInputId.replace(
+                                        new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), 
+                                        String(value)
+                                    );
+                                });
+                                
+                                // Check if resolved input ID matches an external node
+                                if (configData[resolvedInputId] && configData[resolvedInputId].type !== 'dynamic_template') {
+                                    this.createExternalTemplateConnection(resolvedInputId, templateNodeId, 'external-to-template');
+                                    return true;
                                 }
+                                return false;
                             };
 
                             if (templateNodeData.input) {
