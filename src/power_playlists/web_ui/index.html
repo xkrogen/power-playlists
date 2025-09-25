@@ -2085,7 +2085,6 @@
                 this.templateCanvas.innerHTML = '<svg id="templateConnections" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></svg>';
                 this.templateConnections = document.getElementById('templateConnections');
                 this.templateNodes.clear();
-                this.templateConnections = [];
 
                 // Create nodes with placeholder highlighting
                 let x = 50, y = 50;
@@ -2102,45 +2101,12 @@
             }
 
             createTemplateNode(nodeId, nodeData, x, y) {
-                const nodeElement = document.createElement('div');
-                nodeElement.className = 'node';
-                nodeElement.style.left = `${x}px`;
-                nodeElement.style.top = `${y}px`;
-                
-                const nodeType = nodeData.type || 'unknown';
-                nodeElement.classList.add(`node-type-${nodeType}`);
-
-                const schema = this.nodeSchemas && this.nodeSchemas[nodeType];
-                const icon = schema ? schema.icon : '?';
-                const color = schema ? schema.color : '#95A5A6';
-                
-                // Set node color
-                nodeElement.style.setProperty('--node-color', color);
-
-                // Format properties with placeholder highlighting
-                const properties = this.formatTemplateNodeProperties(nodeData, schema);
-
-                nodeElement.innerHTML = `
-                    <div class="node-header">
-                        <div class="node-icon">${icon}</div>
-                        <div class="node-name">${this.highlightPlaceholders(nodeId)}</div>
-                    </div>
-                    <div class="node-body">
-                        ${properties}
-                    </div>
-                `;
-
-                nodeElement.addEventListener('dblclick', () => this.editTemplateNode(nodeId));
-                nodeElement.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.selectTemplateNode(nodeElement);
-                });
-
-                this.templateCanvas.appendChild(nodeElement);
-                this.templateNodes.set(nodeId, {
-                    element: nodeElement,
-                    data: nodeData,
-                    position: { x, y }
+                // Use unified rendering system for template nodes
+                return this.createUnifiedNode(nodeId, nodeData, x, y, {
+                    isTemplateNode: true,
+                    highlightPlaceholders: true,
+                    containerElement: this.templateCanvas,
+                    nodesMap: this.templateNodes
                 });
             }
 
