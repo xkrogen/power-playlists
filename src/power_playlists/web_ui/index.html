@@ -50,6 +50,14 @@
             background: #545b62;
         }
 
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
         .status-bar {
             background: #f8f9fa;
             border-top: 1px solid #e0e0e0;
@@ -362,6 +370,7 @@
             <div class="form-actions">
                 <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
                 <button class="btn" id="saveNodeBtn">Save</button>
+                <button class="btn btn-danger" id="deleteNodeBtn" style="margin-left: auto;">Delete</button>
             </div>
         </div>
     </div>
@@ -449,6 +458,7 @@
                 // Modal buttons
                 document.getElementById('cancelBtn').addEventListener('click', () => this.closeModal());
                 document.getElementById('saveNodeBtn').addEventListener('click', () => this.saveNodeChanges());
+                document.getElementById('deleteNodeBtn').addEventListener('click', () => this.deleteNode());
                 document.getElementById('errorOkBtn').addEventListener('click', () => this.closeErrorModal());
                 document.getElementById('addNodeCancelBtn').addEventListener('click', () => this.closeAddNodeModal());
                 document.getElementById('addNodeConfirmBtn').addEventListener('click', () => this.confirmAddNode());
@@ -1076,6 +1086,61 @@
             closeModal() {
                 this.editModal.classList.add('hidden');
                 this.currentEditingNode = null;
+            }
+
+            deleteNode() {
+                if (!this.currentEditingNode) return;
+                
+                // Confirm deletion
+                if (!confirm(`Are you sure you want to delete node "${this.currentEditingNode}"?`)) {
+                    return;
+                }
+                
+                const nodeId = this.currentEditingNode;
+                const nodeInfo = this.nodes.get(nodeId);
+                
+                if (nodeInfo) {
+                    // Remove the visual element
+                    nodeInfo.element.remove();
+                    
+                    // Remove from nodes map
+                    this.nodes.delete(nodeId);
+                    
+                    // Remove connections involving this node
+                    this.connections = this.connections.filter(conn => {
+                        if (conn.from === nodeId || conn.to === nodeId) {
+                            // Remove the connection element
+                            conn.element.remove();
+                            return false;
+                        }
+                        return true;
+                    });
+                    
+                    // Update all remaining nodes that might reference this deleted node
+                    this.nodes.forEach((remainingNodeInfo, remainingNodeId) => {
+                        const data = remainingNodeInfo.data;
+                        
+                        // Clean up single input references
+                        if (data.input === nodeId) {
+                            delete data.input;
+                        }
+                        
+                        // Clean up multiple input references
+                        if (data.inputs && Array.isArray(data.inputs)) {
+                            data.inputs = data.inputs.filter(inputId => inputId !== nodeId);
+                            if (data.inputs.length === 0) {
+                                delete data.inputs;
+                            }
+                        }
+                    });
+                    
+                    // Update connections to reflect the cleanup
+                    this.updateConnections();
+                    
+                    // Close modal and update status
+                    this.closeModal();
+                    this.statusText.textContent = `Deleted node: ${nodeId}`;
+                }
             }
 
             // Remove old addNewNode - replaced by showAddNodeModal
