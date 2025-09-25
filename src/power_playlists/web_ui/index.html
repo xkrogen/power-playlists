@@ -2477,13 +2477,31 @@
             }
 
             saveTemplate() {
-                // Implementation for saving template changes
-                alert('Save template functionality to be implemented');
+                // Save current template changes
+                const configData = this.getCurrentConfigData();
+                const templateData = configData[this.currentTemplateNodeId];
+                if (!templateData) return;
+                
+                // Update the main node data with any changes
+                const nodeInfo = this.nodes.get(this.currentTemplateNodeId);
+                if (nodeInfo) {
+                    nodeInfo.data = { ...templateData };
+                }
+                
+                // Mark as modified
+                this.isModified = true;
+                this.updateStatus('Template saved locally. Use "Save" to persist changes.');
+                
+                // Update connections to reflect any changes
+                this.updateConnections();
+                
+                // Return to overview
+                this.exitTemplateView();
             }
 
             addTemplateInstance() {
                 // Add a new empty instance
-                const configData = this.currentConfig.data || this.currentConfig;
+                const configData = this.getCurrentConfigData();
                 const nodeData = configData[this.currentTemplateNodeId];
                 if (!nodeData.instances) nodeData.instances = [];
                 
@@ -2498,24 +2516,52 @@
                 
                 nodeData.instances.push(newInstance);
                 
+                // Update the main node data
+                const nodeInfo = this.nodes.get(this.currentTemplateNodeId);
+                if (nodeInfo) {
+                    nodeInfo.data.instances = nodeData.instances;
+                }
+                
                 // Refresh display
                 this.enterTemplateView(this.currentTemplateNodeId);
+                
+                // Update overview connections
+                setTimeout(() => this.updateConnections(), 100);
             }
 
             removeTemplateInstance(index) {
-                const configData = this.currentConfig.data || this.currentConfig;
+                const configData = this.getCurrentConfigData();
                 const nodeData = configData[this.currentTemplateNodeId];
                 if (nodeData.instances && nodeData.instances.length > 1) {
                     nodeData.instances.splice(index, 1);
+                    
+                    // Update the main node data
+                    const nodeInfo = this.nodes.get(this.currentTemplateNodeId);
+                    if (nodeInfo) {
+                        nodeInfo.data.instances = nodeData.instances;
+                    }
+                    
                     this.enterTemplateView(this.currentTemplateNodeId);
+                    
+                    // Update overview connections
+                    setTimeout(() => this.updateConnections(), 100);
                 }
             }
 
             updateInstanceVariable(instanceIndex, variable, value) {
-                const configData = this.currentConfig.data || this.currentConfig;
+                const configData = this.getCurrentConfigData();
                 const nodeData = configData[this.currentTemplateNodeId];
                 if (nodeData.instances && nodeData.instances[instanceIndex]) {
                     nodeData.instances[instanceIndex][variable] = value;
+                    
+                    // Update the main node data
+                    const nodeInfo = this.nodes.get(this.currentTemplateNodeId);
+                    if (nodeInfo) {
+                        nodeInfo.data.instances = nodeData.instances;
+                    }
+                    
+                    // Update overview connections since variable changes affect connections
+                    setTimeout(() => this.updateConnections(), 100);
                 }
             }
 
