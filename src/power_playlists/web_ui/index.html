@@ -756,7 +756,7 @@
             }
 
             formatNodeProperties(nodeData, schema = null) {
-                const excludeKeys = ['input', 'inputs', 'type'];
+                const excludeKeys = ['input', 'inputs', 'input_nodes', 'type'];
                 const properties = Object.entries(nodeData)
                     .filter(([key]) => !excludeKeys.includes(key))
                     .slice(0, 4)
@@ -797,6 +797,15 @@
                     // Handle multiple inputs
                     if (nodeData.inputs && Array.isArray(nodeData.inputs)) {
                         nodeData.inputs.forEach(inputId => {
+                            if (inputId && this.nodes.has(inputId)) {
+                                this.createConnection(inputId, nodeId);
+                            }
+                        });
+                    }
+
+                    // Handle input_nodes (used by combine_sort_dedup_output)
+                    if (nodeData.input_nodes && Array.isArray(nodeData.input_nodes)) {
+                        nodeData.input_nodes.forEach(inputId => {
                             if (inputId && this.nodes.has(inputId)) {
                                 this.createConnection(inputId, nodeId);
                             }

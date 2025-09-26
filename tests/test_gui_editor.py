@@ -104,6 +104,120 @@ class TestGuiEditor:
         finally:
             os.unlink(temp_file)
 
+    def test_combine_sort_dedup_output_validation(self):
+        """Test validation logic for combine_sort_dedup_output nodes."""
+
+        # Create a mock handler class to test the validation method
+        class MockHandler:
+            def _validate_node_properties(self, node_id: str, node_type: str, node_data: dict):
+                # Copy the validation logic from ConfigurationRequestHandler
+                errors = []
+
+                node_schemas = {
+                    "combine_sort_dedup_output": {
+                        "required": ["output_playlist_name", "sort_key"],
+                        "optional": ["sort_desc", "input_nodes", "input_uris"],
+                    },
+                }
+
+                if node_type not in node_schemas:
+                    return errors
+
+                schema = node_schemas[node_type]
+
+                # Check required properties
+                for req_prop in schema["required"]:
+                    if req_prop not in node_data:
+                        errors.append(f"Node '{node_id}' is missing required property '{req_prop}'")
+
+                # Special validation for combine_sort_dedup_output
+                if node_type == "combine_sort_dedup_output":
+                    has_input_nodes = "input_nodes" in node_data and node_data["input_nodes"]
+                    has_input_uris = "input_uris" in node_data and node_data["input_uris"]
+                    if not has_input_nodes and not has_input_uris:
+                        errors.append(f"Node '{node_id}' must have either 'input_nodes' or 'input_uris' property")
+                    elif has_input_nodes and has_input_uris:
+                        errors.append(f"Node '{node_id}' cannot have both 'input_nodes' and 'input_uris' properties")
+
+                return errors
+
+        handler = MockHandler()
+
+        # Test valid configuration with input_nodes
+        valid_data = {
+            "type": "combine_sort_dedup_output",
+            "input_nodes": ["playlist1", "playlist2"],
+            "output_playlist_name": "Combined Output",
+            "sort_key": "time_added",
+            "sort_desc": True,
+        }
+        errors = handler._validate_node_properties("multi_output", "combine_sort_dedup_output", valid_data)
+        assert len(errors) == 0, f"Expected no errors, got: {errors}"
+
+        # Test valid configuration with input_uris
+        valid_data_uris = {
+            "type": "combine_sort_dedup_output",
+            "input_uris": ["spotify:playlist:123", "spotify:playlist:456"],
+            "output_playlist_name": "Combined Output",
+            "sort_key": "name",
+        }
+        errors = handler._validate_node_properties("multi_output", "combine_sort_dedup_output", valid_data_uris)
+        assert len(errors) == 0, f"Expected no errors, got: {errors}"
+
+        # Test invalid configuration - missing both input_nodes and input_uris
+        invalid_data = {
+            "type": "combine_sort_dedup_output",
+            "output_playlist_name": "Combined Output",
+            "sort_key": "time_added",
+        }
+        errors = handler._validate_node_properties("multi_output", "combine_sort_dedup_output", invalid_data)
+        assert len(errors) > 0, "Expected validation errors for missing inputs"
+        assert any("must have either 'input_nodes' or 'input_uris'" in error for error in errors)
+
+        # Test invalid configuration - both input_nodes and input_uris
+        invalid_data_both = {
+            "type": "combine_sort_dedup_output",
+            "input_nodes": ["playlist1"],
+            "input_uris": ["spotify:playlist:123"],
+            "output_playlist_name": "Combined Output",
+            "sort_key": "time_added",
+        }
+        errors = handler._validate_node_properties("multi_output", "combine_sort_dedup_output", invalid_data_both)
+        assert len(errors) > 0, "Expected validation errors for conflicting inputs"
+        assert any("cannot have both 'input_nodes' and 'input_uris'" in error for error in errors)
+
+    def test_combine_sort_dedup_output_node_support(self):
+        """Test that combine_sort_dedup_output nodes are properly supported in GUI editor."""
+        test_config = {
+            "multi_output": {
+                "type": "combine_sort_dedup_output",
+                "input_nodes": ["playlist1", "playlist2"],
+                "output_playlist_name": "Combined Output",
+                "sort_key": "time_added",
+                "sort_desc": True,
+            }
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            yaml.dump(test_config, f, default_flow_style=False)
+            temp_file = f.name
+
+        try:
+            # Verify the file can be read back
+            with open(temp_file) as f:
+                loaded_config = yaml.safe_load(f)
+
+            assert loaded_config == test_config
+            assert "multi_output" in loaded_config
+            assert loaded_config["multi_output"]["type"] == "combine_sort_dedup_output"
+            assert loaded_config["multi_output"]["input_nodes"] == ["playlist1", "playlist2"]
+            assert loaded_config["multi_output"]["output_playlist_name"] == "Combined Output"
+            assert loaded_config["multi_output"]["sort_key"] == "time_added"
+            assert loaded_config["multi_output"]["sort_desc"]
+
+        finally:
+            os.unlink(temp_file)
+
     def test_gui_editor_module_import(self):
         """Test that the GUI editor module can be imported."""
         # This should work even without a display

@@ -290,6 +290,41 @@ class ConfigurationRequestHandler(BaseHTTPRequestHandler):
                     "color": "#E91E63",
                     "properties": {"input": {"type": "node_reference", "required": True, "description": "Input node"}},
                 },
+                "combine_sort_dedup_output": {
+                    "name": "Combine/Sort/Dedup/Output",
+                    "description": "Combines inputs, sorts, removes duplicates, and outputs to playlist",
+                    "icon": "🔄",
+                    "color": "#9B59B6",
+                    "properties": {
+                        "input_nodes": {
+                            "type": "node_list",
+                            "required": False,
+                            "description": "List of input nodes (use either this OR input_uris)",
+                        },
+                        "input_uris": {
+                            "type": "text_list",
+                            "required": False,
+                            "description": "List of playlist URIs (use either this OR input_nodes)",
+                        },
+                        "output_playlist_name": {
+                            "type": "text",
+                            "required": True,
+                            "description": "Name of output playlist",
+                        },
+                        "sort_key": {
+                            "type": "select",
+                            "required": True,
+                            "description": "What to sort by",
+                            "options": ["time_added", "name", "artist", "album", "release_date"],
+                        },
+                        "sort_desc": {
+                            "type": "boolean",
+                            "required": False,
+                            "description": "Sort descending",
+                            "default": False,
+                        },
+                    },
+                },
             }
 
             self._send_json_response(200, {"schemas": node_schemas})
@@ -432,8 +467,8 @@ class ConfigurationRequestHandler(BaseHTTPRequestHandler):
             "is_liked": {"required": ["input"], "optional": []},
             "dynamic_template": {"required": [], "optional": []},  # Complex validation needed
             "combine_sort_dedup_output": {
-                "required": ["inputs", "playlist_name", "sort_key"],
-                "optional": ["sort_desc", "public", "size"],
+                "required": ["output_playlist_name", "sort_key"],
+                "optional": ["sort_desc", "input_nodes", "input_uris"],
             },
         }
 
@@ -486,6 +521,25 @@ class ConfigurationRequestHandler(BaseHTTPRequestHandler):
                 errors.append(f"Node '{node_id}' must have either 'days_ago' or 'cutoff_time' property")
             elif has_days_ago and has_cutoff_time:
                 errors.append(f"Node '{node_id}' cannot have both 'days_ago' and 'cutoff_time' properties")
+
+        # Special validation for combine_sort_dedup_output
+        if node_type == "combine_sort_dedup_output":
+            has_input_nodes = "input_nodes" in node_data and node_data["input_nodes"]
+            has_input_uris = "input_uris" in node_data and node_data["input_uris"]
+            if not has_input_nodes and not has_input_uris:
+                errors.append(f"Node '{node_id}' must have either 'input_nodes' or 'input_uris' property")
+            elif has_input_nodes and has_input_uris:
+                errors.append(f"Node '{node_id}' cannot have both 'input_nodes' and 'input_uris' properties")
+
+            # Validate sort_key for combine_sort_dedup_output
+            if "sort_key" in node_data:
+                valid_sort_keys = ["time_added", "name", "artist", "album", "release_date"]
+                if node_data["sort_key"] not in valid_sort_keys:
+                    valid_keys_str = ", ".join(valid_sort_keys)
+                    errors.append(
+                        f"Node '{node_id}' has invalid sort_key '{node_data['sort_key']}'. "
+                        f"Valid values: {valid_keys_str}"
+                    )
 
         return errors
 
