@@ -2,12 +2,22 @@
 """
 Integration tests for the graphical editor functionality.
 
-These tests verify the complete workflow of the graphical editor, including:
-- Loading and rendering sample configurations
-- Node modification and persistence
-- Node addition and removal functionality
+These tests verify the complete workflow of the graphical editor backend, including:
+- Loading and rendering sample configurations (4 sample files tested)
+- Node modification and persistence through API endpoints
+- Node addition and removal functionality via HTTP requests
 - Configuration validation and error handling
-- Dynamic template editing capabilities
+- Dynamic template editing capabilities (template nodes and instances)
+
+Core API endpoints tested:
+- GET /api/load - Configuration loading
+- POST /api/save - Configuration saving  
+- GET /api/node-schema - Node type schemas (14 types)
+- POST /api/template/enter - Template editing mode
+- POST /api/template/extract-variables - Template variable extraction
+
+Test coverage includes all node types: playlist, output, combiner, is_liked, 
+dynamic_template, combine_sort_dedup_output, all_tracks, filter_*, sort, dedup, limit.
 """
 
 import json
