@@ -623,6 +623,7 @@
             </div>
             <div class="template-actions">
                 <button class="btn btn-secondary" id="exitTemplateBtn">← Back to Overview</button>
+                <button class="btn btn-primary" id="addTemplateNodeBtn">Add Node</button>
                 <button class="btn" id="saveTemplateBtn">Save Template</button>
             </div>
         </div>
@@ -713,15 +714,21 @@
                 // Template view buttons
                 document.getElementById('exitTemplateBtn').addEventListener('click', () => this.exitTemplateView());
                 document.getElementById('saveTemplateBtn').addEventListener('click', () => this.saveTemplate());
+                document.getElementById('addTemplateNodeBtn').addEventListener('click', () => this.showAddTemplateNodeModal());
                 document.getElementById('addInstanceBtn').addEventListener('click', () => this.addTemplateInstance());
 
-                // Canvas events
+                // Canvas events (both main and template)
                 this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
                 document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
                 document.addEventListener('mouseup', (e) => this.handleMouseUp(e));
 
                 // Prevent context menu
                 this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+                
+                // Template canvas events
+                this.templateCanvas = document.getElementById('templateCanvas');
+                this.templateCanvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                this.templateCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
             }
 
             async loadNodeSchemas() {
@@ -2198,12 +2205,17 @@
 
             createTemplateNode(nodeId, nodeData, x, y) {
                 // Use unified rendering system for template nodes
-                return this.createUnifiedNode(nodeId, nodeData, x, y, {
+                const nodeElement = this.createUnifiedNode(nodeId, nodeData, x, y, {
                     isTemplateNode: true,
                     highlightPlaceholders: true,
                     containerElement: this.templateCanvas,
                     nodesMap: this.templateNodes
                 });
+                
+                // Add delete button to all template nodes
+                this.addDeleteButtonToNode(nodeElement, nodeId);
+                
+                return nodeElement;
             }
 
             formatTemplateNodeProperties(nodeData, schema) {
@@ -2639,6 +2651,186 @@
                 }
             }
 
+            showAddTemplateNodeModal() {
+                // Reuse the existing add node modal
+                document.getElementById('newNodeId').value = '';
+                document.getElementById('newNodeType').value = '';
+                this.updateNodeTypeDescription('');
+                
+                // Mark that we're adding to template
+                this.addingToTemplate = true;
+                this.addNodeModal.classList.remove('hidden');
+            }
+
+            addTemplateNode(nodeId, nodeType) {
+                // Find a good position for the new node
+                const existingNodes = this.templateCanvas.querySelectorAll('.node');
+                let x = 100;
+                let y = 100;
+                
+                // Try to find an empty spot
+                while (this.isPositionOccupied(x, y, existingNodes)) {
+                    x += 200;
+                    if (x > 800) {
+                        x = 100;
+                        y += 150;
+                    }
+                }
+
+                // Create the node data
+                const nodeData = { type: nodeType };
+                
+                // Add to template data
+                const configData = this.getCurrentConfigData();
+                const templateNodeData = configData[this.currentTemplateNodeId];
+                if (!templateNodeData.template) templateNodeData.template = {};
+                templateNodeData.template[nodeId] = nodeData;
+                
+                // Update the main node data
+                const mainNodeInfo = this.nodes.get(this.currentTemplateNodeId);
+                if (mainNodeInfo) {
+                    mainNodeInfo.data.template = templateNodeData.template;
+                }
+
+                // Create the visual node in template canvas
+                const nodeElement = this.createUnifiedNode(nodeId, nodeData, x, y, {
+                    isTemplateNode: true,
+                    highlightPlaceholders: true,
+                    containerElement: this.templateCanvas,
+                    nodesMap: new Map() // Template nodes don't need to be in main nodes map
+                });
+
+                // Add delete button to template nodes
+                this.addDeleteButtonToNode(nodeElement, nodeId);
+                
+                // Update connections
+                this.updateTemplateConnections();
+                
+                // Mark as modified
+                this.hasUnsavedChanges = true;
+            }
+
+            addDeleteButtonToNode(nodeElement, nodeId) {
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'node-delete-btn';
+                deleteBtn.innerHTML = '×';
+                deleteBtn.title = 'Delete node';
+                deleteBtn.style.cssText = `
+                    position: absolute;
+                    top: -8px;
+                    right: -8px;
+                    width: 20px;
+                    height: 20px;
+                    border-radius: 50%;
+                    border: none;
+                    background: #ef4444;
+                    color: white;
+                    font-size: 12px;
+                    cursor: pointer;
+                    display: none;
+                    align-items: center;
+                    justify-content: center;
+                    font-weight: bold;
+                `;
+
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.deleteTemplateNode(nodeId);
+                });
+
+                // Show delete button on hover
+                nodeElement.addEventListener('mouseenter', () => {
+                    deleteBtn.style.display = 'flex';
+                });
+                nodeElement.addEventListener('mouseleave', () => {
+                    deleteBtn.style.display = 'none';
+                });
+
+                nodeElement.style.position = 'relative';
+                nodeElement.appendChild(deleteBtn);
+            }
+
+            deleteTemplateNode(nodeId) {
+                if (confirm(`Are you sure you want to delete the node "${nodeId}"?`)) {
+                    // Remove from template data
+                    const configData = this.getCurrentConfigData();
+                    const templateNodeData = configData[this.currentTemplateNodeId];
+                    if (templateNodeData.template && templateNodeData.template[nodeId]) {
+                        delete templateNodeData.template[nodeId];
+                        
+                        // Update the main node data
+                        const mainNodeInfo = this.nodes.get(this.currentTemplateNodeId);
+                        if (mainNodeInfo) {
+                            mainNodeInfo.data.template = templateNodeData.template;
+                        }
+                    }
+
+                    // Remove the visual node
+                    const nodeElement = this.templateCanvas.querySelector(`[data-node-id="${nodeId}"]`);
+                    if (nodeElement) {
+                        nodeElement.remove();
+                    }
+
+                    // Update connections
+                    this.updateTemplateConnections();
+                    
+                    // Mark as modified
+                    this.hasUnsavedChanges = true;
+                }
+            }
+
+            isPositionOccupied(x, y, existingNodes) {
+                const buffer = 50; // Minimum distance between nodes
+                for (const node of existingNodes) {
+                    const nodeX = parseInt(node.style.left) || 0;
+                    const nodeY = parseInt(node.style.top) || 0;
+                    if (Math.abs(nodeX - x) < buffer && Math.abs(nodeY - y) < buffer) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            // Override confirmAddNode to handle template nodes
+            confirmAddNode() {
+                const nodeId = document.getElementById('newNodeId').value.trim();
+                const nodeType = document.getElementById('newNodeType').value;
+                
+                if (!nodeId) {
+                    this.showError('Please enter a node ID');
+                    return;
+                }
+                
+                if (!nodeType) {
+                    this.showError('Please select a node type');
+                    return;
+                }
+                
+                // Check if adding to template
+                if (this.addingToTemplate) {
+                    // Check if node ID already exists in template
+                    const configData = this.getCurrentConfigData();
+                    const templateNodeData = configData[this.currentTemplateNodeId];
+                    if (templateNodeData.template && templateNodeData.template[nodeId]) {
+                        this.showError('Node ID already exists in template!');
+                        return;
+                    }
+                    
+                    this.addTemplateNode(nodeId, nodeType);
+                    this.addingToTemplate = false;
+                } else {
+                    // Check if node ID already exists in main config
+                    if (this.nodes.has(nodeId)) {
+                        this.showError('Node ID already exists!');
+                        return;
+                    }
+                    
+                    this.createNewNode(nodeId, nodeType);
+                }
+                
+                this.closeAddNodeModal();
+            }
+
             handleMouseDown(e) {
                 const nodeElement = e.target.closest('.node');
                 if (nodeElement) {
@@ -2649,32 +2841,55 @@
                     };
                     this.isDragging = nodeElement;
                     this.selectNode(nodeElement);
+                    
+                    // Determine which canvas we're in
+                    const templateCanvas = document.getElementById('templateCanvas');
+                    this.draggingInTemplate = templateCanvas.contains(nodeElement);
+                    
                     e.preventDefault();
                 }
             }
 
             handleMouseMove(e) {
                 if (this.isDragging) {
-                    const x = e.clientX - this.dragOffset.x - this.canvas.getBoundingClientRect().left;
-                    const y = e.clientY - this.dragOffset.y - this.canvas.getBoundingClientRect().top;
+                    let canvasRect;
+                    if (this.draggingInTemplate) {
+                        canvasRect = this.templateCanvas.getBoundingClientRect();
+                    } else {
+                        canvasRect = this.canvas.getBoundingClientRect();
+                    }
                     
-                    this.isDragging.style.left = `${x}px`;
-                    this.isDragging.style.top = `${y}px`;
+                    const x = e.clientX - this.dragOffset.x - canvasRect.left;
+                    const y = e.clientY - this.dragOffset.y - canvasRect.top;
                     
-                    // Update stored position
-                    for (const [nodeId, nodeInfo] of this.nodes) {
-                        if (nodeInfo.element === this.isDragging) {
-                            nodeInfo.position = { x, y };
-                            break;
+                    this.isDragging.style.left = `${Math.max(0, x)}px`;
+                    this.isDragging.style.top = `${Math.max(0, y)}px`;
+                    
+                    // Update stored position for main canvas nodes
+                    if (!this.draggingInTemplate) {
+                        for (const [nodeId, nodeInfo] of this.nodes) {
+                            if (nodeInfo.element === this.isDragging) {
+                                nodeInfo.position = { x, y };
+                                break;
+                            }
                         }
                     }
                     
-                    this.updateConnections();
+                    // Update connections while dragging
+                    if (this.draggingInTemplate) {
+                        this.updateTemplateConnections();
+                    } else {
+                        this.updateConnections();
+                    }
                 }
             }
 
             handleMouseUp(e) {
-                this.isDragging = false;
+                if (this.isDragging) {
+                    this.isDragging = false;
+                    this.draggingInTemplate = false;
+                    this.hasUnsavedChanges = true;
+                }
             }
         }
 
