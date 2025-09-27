@@ -741,6 +741,14 @@
                 // Canvas events (both main and template)
                 this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
                 this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+                
+                // Also add wheel listener to canvas container for better coverage
+                const canvasContainer = document.querySelector('.canvas-container');
+                if (canvasContainer) {
+                    canvasContainer.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+                    canvasContainer.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                }
+                
                 document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
                 document.addEventListener('mouseup', (e) => this.handleMouseUp(e));
 
@@ -752,6 +760,13 @@
                 this.templateCanvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
                 this.templateCanvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
                 this.templateCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
+                
+                // Also add wheel listener to template canvas container for better coverage
+                const templateCanvasContainer = document.querySelector('.template-canvas-container');
+                if (templateCanvasContainer) {
+                    templateCanvasContainer.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+                    templateCanvasContainer.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                }
             }
 
             async loadNodeSchemas() {
@@ -2879,12 +2894,14 @@
                     e.preventDefault();
                 } else {
                     // Start panning when clicking on canvas (not on a node)
-                    const isTemplateCanvas = e.target.closest('#templateCanvas');
+                    const isTemplateCanvas = e.target.closest('#templateCanvas') || e.target.closest('.template-canvas-container');
+                    const isInMainCanvas = e.target.closest('#canvas') || e.target.closest('.canvas-container');
+                    
                     if (isTemplateCanvas) {
                         this.templateIsPanning = true;
                         this.templatePanStart = { x: e.clientX, y: e.clientY };
                         this.templateCanvas.style.cursor = 'grabbing';
-                    } else if (e.target.closest('#canvas')) {
+                    } else if (isInMainCanvas) {
                         this.isPanning = true;
                         this.panStart = { x: e.clientX, y: e.clientY };
                         this.canvas.style.cursor = 'grabbing';
@@ -2978,7 +2995,7 @@
             handleWheel(e) {
                 e.preventDefault();
                 
-                const isTemplateCanvas = e.target.closest('#templateCanvas');
+                const isTemplateCanvas = e.target.closest('#templateCanvas') || e.target.closest('.template-canvas-container');
                 const canvas = isTemplateCanvas ? this.templateCanvas : this.canvas;
                 const rect = canvas.getBoundingClientRect();
                 
@@ -2990,8 +3007,8 @@
                 const currentScale = isTemplateCanvas ? this.templateScale : this.scale;
                 const currentOffset = isTemplateCanvas ? this.templateCanvasOffset : this.canvasOffset;
                 
-                // Calculate zoom factor
-                const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+                // Calculate zoom factor (reduced speed for better UX)
+                const zoomFactor = e.deltaY > 0 ? 0.95 : 1.05;
                 const newScale = Math.max(this.minScale, Math.min(this.maxScale, currentScale * zoomFactor));
                 
                 if (newScale !== currentScale) {

@@ -376,7 +376,7 @@ class TestGraphicalEditorBrowser:
     def test_zoom_and_pan_functionality(self, browser_driver, editor_server_with_browser):
         """Test zoom and pan functionality in the GUI editor."""
         editor, url = editor_server_with_browser
-        
+
         browser_driver.get(url)
         wait = WebDriverWait(browser_driver, 10)
 
@@ -397,7 +397,7 @@ class TestGraphicalEditorBrowser:
 
         # Check initial zoom level
         initial_zoom = zoom_level_display.text
-        assert "100%" == initial_zoom
+        assert initial_zoom == "100%"
 
         # Test zoom in functionality
         zoom_in_btn.click()
@@ -405,7 +405,7 @@ class TestGraphicalEditorBrowser:
         new_zoom = zoom_level_display.text
         assert new_zoom != initial_zoom
         # Should be around 120%
-        assert "120%" == new_zoom
+        assert new_zoom == "120%"
 
         # Test zoom out functionality
         zoom_out_btn.click()
@@ -419,11 +419,10 @@ class TestGraphicalEditorBrowser:
         reset_zoom_btn.click()
         time.sleep(0.2)
         reset_zoom = zoom_level_display.text
-        assert "100%" == reset_zoom
+        assert reset_zoom == "100%"
 
         # Test mouse wheel zoom functionality via JavaScript
-        canvas = browser_driver.find_element(By.ID, "canvas")
-        
+
         # Simulate mouse wheel zoom in
         browser_driver.execute_script("""
             const canvas = document.getElementById('canvas');
@@ -444,20 +443,20 @@ class TestGraphicalEditorBrowser:
         for _ in range(20):  # Try to exceed max zoom
             zoom_in_btn.click()
             time.sleep(0.05)
-        
+
         max_zoom = zoom_level_display.text
         # Should be limited to max zoom (300%)
-        zoom_percent = int(max_zoom.replace('%', ''))
+        zoom_percent = int(max_zoom.replace("%", ""))
         assert zoom_percent <= 300
 
         # Test zoom limits - zoom out repeatedly to test min zoom
         for _ in range(30):  # Try to exceed min zoom
             zoom_out_btn.click()
             time.sleep(0.05)
-        
+
         min_zoom = zoom_level_display.text
         # Should be limited to min zoom (10%)
-        zoom_percent = int(min_zoom.replace('%', ''))
+        zoom_percent = int(min_zoom.replace("%", ""))
         assert zoom_percent >= 10
 
         # Reset for pan testing
