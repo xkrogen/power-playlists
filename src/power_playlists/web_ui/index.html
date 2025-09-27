@@ -1807,14 +1807,27 @@
                 
                 if (!fromNode || !toNode) return;
 
+                // Get node positions in canvas internal coordinates
+                const fromNodeLeft = parseFloat(fromNode.element.style.left) || 0;
+                const fromNodeTop = parseFloat(fromNode.element.style.top) || 0;
+                const toNodeLeft = parseFloat(toNode.element.style.left) || 0;
+                const toNodeTop = parseFloat(toNode.element.style.top) || 0;
+                
+                // Get actual node dimensions (we need the untransformed dimensions)
                 const fromRect = fromNode.element.getBoundingClientRect();
                 const toRect = toNode.element.getBoundingClientRect();
-                const canvasRect = this.canvas.getBoundingClientRect();
-
-                const fromX = fromRect.left - canvasRect.left + fromRect.width / 2;
-                const fromY = fromRect.top - canvasRect.top + fromRect.height / 2;
-                const toX = toRect.left - canvasRect.left + toRect.width / 2;
-                const toY = toRect.top - canvasRect.top + toRect.height / 2;
+                
+                // Calculate dimensions accounting for scale
+                const fromWidth = fromRect.width / this.scale;
+                const fromHeight = fromRect.height / this.scale;
+                const toWidth = toRect.width / this.scale;
+                const toHeight = toRect.height / this.scale;
+                
+                // Convert to SVG coordinates by applying canvas transforms
+                const fromX = (fromNodeLeft + fromWidth / 2) * this.scale + this.canvasOffset.x;
+                const fromY = (fromNodeTop + fromHeight / 2) * this.scale + this.canvasOffset.y;
+                const toX = (toNodeLeft + toWidth / 2) * this.scale + this.canvasOffset.x;
+                const toY = (toNodeTop + toHeight / 2) * this.scale + this.canvasOffset.y;
 
                 const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
                 const controlPoint1X = fromX + (toX - fromX) * 0.5;
@@ -2986,8 +2999,8 @@
                     const x = (mouseXInContainer - currentOffset.x - this.dragOffset.x) / currentScale;
                     const y = (mouseYInContainer - currentOffset.y - this.dragOffset.y) / currentScale;
                     
-                    this.isDragging.style.left = `${Math.max(0, x)}px`;
-                    this.isDragging.style.top = `${Math.max(0, y)}px`;
+                    this.isDragging.style.left = `${x}px`;
+                    this.isDragging.style.top = `${y}px`;
                     
                     // Update stored position for main canvas nodes
                     if (!this.draggingInTemplate) {
