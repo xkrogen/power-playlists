@@ -508,3 +508,116 @@ class TestGraphicalEditorBrowser:
 
         # Transform should have changed due to panning
         assert final_transform != initial_transform
+
+    def test_connection_rendering_after_zoom_and_drag(self, browser_driver, editor_server_with_browser):
+        """Test that connections render correctly after zooming and dragging nodes."""
+        editor, url = editor_server_with_browser
+        
+        browser_driver.get(url)
+        wait = WebDriverWait(browser_driver, 10)
+
+        # Wait for page to load
+        wait.until(EC.presence_of_element_located((By.ID, "canvas")))
+        time.sleep(2)  # Allow configuration to load
+
+        # Verify we have connections initially
+        connections_before = browser_driver.execute_script("""
+            const connections = document.querySelectorAll('.connection-line');
+            return {
+                count: connections.length,
+                paths: Array.from(connections).map(conn => conn.getAttribute('d'))
+            };
+        """)
+        
+        if connections_before['count'] == 0:
+            # No connections in default config, skip test
+            pytest.skip("No connections found in test configuration")
+
+        # Apply zoom
+        browser_driver.execute_script("""
+            const canvas = document.getElementById('canvas');
+            for (let i = 0; i < 10; i++) {
+                const event = new WheelEvent('wheel', {
+                    deltaY: -100,
+                    clientX: 400,
+                    clientY: 300,
+                    bubbles: true,
+                    cancelable: true
+                });
+                canvas.dispatchEvent(event);
+            }
+        """)
+        
+        time.sleep(0.5)
+        
+        # Get zoom level
+        zoom_level = browser_driver.find_element(By.ID, "zoomLevel").text
+        assert zoom_level != "100%", "Zoom should have changed"
+
+        # Drag a node
+        nodes = browser_driver.find_elements(By.CSS_SELECTOR, ".node")
+        if len(nodes) > 0:
+            node = nodes[0]
+            browser_driver.execute_script("""
+                const node = arguments[0];
+                const rect = node.getBoundingClientRect();
+                const startX = rect.left + rect.width / 2;
+                const startY = rect.top + rect.height / 2;
+                
+                // Start drag
+                const mouseDown = new MouseEvent('mousedown', {
+                    clientX: startX,
+                    clientY: startY,
+                    bubbles: true,
+                    cancelable: true
+                });
+                node.dispatchEvent(mouseDown);
+                
+                // Move mouse
+                const mouseMove = new MouseEvent('mousemove', {
+                    clientX: startX + 100,
+                    clientY: startY + 80,
+                    bubbles: true,
+                    cancelable: true
+                });
+                document.dispatchEvent(mouseMove);
+                
+                // End drag
+                const mouseUp = new MouseEvent('mouseup', {
+                    clientX: startX + 100,
+                    clientY: startY + 80,
+                    bubbles: true,
+                    cancelable: true
+                });
+                document.dispatchEvent(mouseUp);
+            """, node)
+            
+            time.sleep(0.5)
+
+        # Check connections after zoom and drag
+        connections_after = browser_driver.execute_script("""
+            const connections = document.querySelectorAll('.connection-line');
+            return {
+                count: connections.length,
+                paths: Array.from(connections).map(conn => conn.getAttribute('d')),
+                hasValidPaths: Array.from(connections).every(conn => {
+                    const path = conn.getAttribute('d');
+                    // Check that path contains valid coordinates (not NaN or extremely large values)
+                    const matches = path.match(/[+-]?\\d*\\.?\\d+/g);
+                    if (!matches) return false;
+                    return matches.every(num => {
+                        const val = parseFloat(num);
+                        return !isNaN(val) && Math.abs(val) < 50000; // Reasonable coordinate bounds
+                    });
+                })
+            };
+        """)
+
+        # Verify connections are still present and valid
+        assert connections_after['count'] > 0, "Connections should still be present after zoom and drag"
+        assert connections_after['count'] == connections_before['count'], "Connection count should remain the same"
+        assert connections_after['hasValidPaths'], f"All connection paths should contain valid coordinates, got: {connections_after['paths'][:3]}"
+        
+        # Verify paths have changed (indicating they updated correctly)
+        paths_changed = any(before != after for before, after in zip(connections_before['paths'], connections_after['paths']))
+        assert paths_changed, "Connection paths should have updated after node dragging"

@@ -1807,27 +1807,22 @@
                 
                 if (!fromNode || !toNode) return;
 
-                // Get node positions in canvas internal coordinates
-                const fromNodeLeft = parseFloat(fromNode.element.style.left) || 0;
-                const fromNodeTop = parseFloat(fromNode.element.style.top) || 0;
-                const toNodeLeft = parseFloat(toNode.element.style.left) || 0;
-                const toNodeTop = parseFloat(toNode.element.style.top) || 0;
+                // Since the SVG is inside the canvas and transforms with it, 
+                // we can use the node positions and sizes directly from their styles
+                const fromLeft = parseFloat(fromNode.element.style.left) || 0;
+                const fromTop = parseFloat(fromNode.element.style.top) || 0;
+                const toLeft = parseFloat(toNode.element.style.left) || 0;
+                const toTop = parseFloat(toNode.element.style.top) || 0;
                 
-                // Get actual node dimensions (we need the untransformed dimensions)
-                const fromRect = fromNode.element.getBoundingClientRect();
-                const toRect = toNode.element.getBoundingClientRect();
+                // Use standard node dimensions (most nodes are similar size)
+                const nodeWidth = 180; // Standard node width
+                const nodeHeight = 80;  // Approximate node height
                 
-                // Calculate dimensions accounting for scale
-                const fromWidth = fromRect.width / this.scale;
-                const fromHeight = fromRect.height / this.scale;
-                const toWidth = toRect.width / this.scale;
-                const toHeight = toRect.height / this.scale;
-                
-                // Convert to SVG coordinates by applying canvas transforms
-                const fromX = (fromNodeLeft + fromWidth / 2) * this.scale + this.canvasOffset.x;
-                const fromY = (fromNodeTop + fromHeight / 2) * this.scale + this.canvasOffset.y;
-                const toX = (toNodeLeft + toWidth / 2) * this.scale + this.canvasOffset.x;
-                const toY = (toNodeTop + toHeight / 2) * this.scale + this.canvasOffset.y;
+                // Calculate center points
+                const fromX = fromLeft + nodeWidth / 2;
+                const fromY = fromTop + nodeHeight / 2;
+                const toX = toLeft + nodeWidth / 2;
+                const toY = toTop + nodeHeight / 2;
 
                 const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
                 const controlPoint1X = fromX + (toX - fromX) * 0.5;
