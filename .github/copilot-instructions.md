@@ -8,12 +8,8 @@ Power Playlists is a Python CLI tool for creating dynamic Spotify playlists usin
 
 ## Working Effectively
 
-### Bootstrap and Setup Commands
-**PREFERRED**: Use Task for all development operations:
-
-1. **Install Task**: `sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b ~/.local/bin`
-2. **Complete setup**: `task install` - installs UV, dependencies, and Python
-3. **List all tasks**: `task --list` - shows all available development tasks
+### Environment Setup
+For initial environment setup and tool installation, see `copilot-setup-steps.yml` in this directory, which contains the automated setup steps for the Copilot coding agent environment.
 
 ### Build and Test Commands
 
@@ -138,10 +134,6 @@ The CI uses the same Task commands as local development for consistency.
 
 ### Quick Command Reference
 ```bash
-# Setup
-task install                             # Complete install (installs UV, deps, Python)
-task --list                              # Show all available tasks
-
 # Development  
 task check                               # Run all validation checks
 task test                                # Run tests (~2s)
@@ -151,6 +143,10 @@ task docs                                # Generate documentation
 # Application
 task run -- --help                      # CLI help
 task run -- run --userconf config.yaml  # Run with config
+
+# Setup (see copilot-setup-steps.yml for full setup)
+task install                             # Complete install (installs UV, deps, Python)
+task --list                              # Show all available tasks
 ```
 
 ### File Patterns to Check After Changes

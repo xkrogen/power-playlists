@@ -1,0 +1,47 @@
+# GitHub Copilot Environment Setup Steps
+# This file defines the setup steps for preparing the development environment
+# for the Power Playlists project in GitHub Copilot's coding agent environment.
+
+setup_steps:
+  - name: Install Task runner
+    description: Install Task development automation tool
+    command: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b ~/.local/bin
+    
+  - name: Add Task to PATH
+    description: Ensure Task is available in PATH
+    command: export PATH="$HOME/.local/bin:$PATH"
+    
+  - name: Install UV and project dependencies
+    description: Install UV package manager, Python, and all project dependencies
+    command: task install
+    
+  - name: Verify installation
+    description: Verify Task and UV are properly installed
+    command: task --list
+
+# Environment variables needed
+environment:
+  PATH: "$HOME/.local/bin:$PATH"
+
+# Required tools and their installation methods
+tools:
+  - name: task
+    installation_method: curl
+    description: Task runner for development automation
+    verify_command: task --version
+    
+  - name: uv
+    installation_method: task_install
+    description: Modern Python package manager
+    verify_command: uv --version
+    
+  - name: python
+    installation_method: uv_python_install
+    description: Python runtime (3.9, 3.10, 3.11, 3.12 supported)
+    verify_command: python --version
+
+# Quick validation commands
+validation_commands:
+  - task --list
+  - uv --version
+  - python --version
