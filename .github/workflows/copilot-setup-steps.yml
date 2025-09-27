@@ -28,12 +28,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Install Task runner
-        run: |
-          sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b ~/.local/bin
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
 
-      - name: Install UV and project dependencies
+      - name: Install project dependencies
         run: |
           task install
 
