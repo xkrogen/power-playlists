@@ -372,3 +372,140 @@ class TestGraphicalEditorBrowser:
             if editor.httpd:
                 editor.httpd.shutdown()
                 editor.httpd.server_close()
+
+    def test_zoom_and_pan_functionality(self, browser_driver, editor_server_with_browser):
+        """Test zoom and pan functionality in the GUI editor."""
+        editor, url = editor_server_with_browser
+        
+        browser_driver.get(url)
+        wait = WebDriverWait(browser_driver, 10)
+
+        # Wait for page to load
+        wait.until(EC.presence_of_element_located((By.ID, "canvas")))
+        time.sleep(2)  # Allow configuration to load
+
+        # Test zoom control buttons exist
+        zoom_in_btn = browser_driver.find_element(By.ID, "zoomInBtn")
+        zoom_out_btn = browser_driver.find_element(By.ID, "zoomOutBtn")
+        reset_zoom_btn = browser_driver.find_element(By.ID, "resetZoomBtn")
+        zoom_level_display = browser_driver.find_element(By.ID, "zoomLevel")
+
+        assert zoom_in_btn is not None
+        assert zoom_out_btn is not None
+        assert reset_zoom_btn is not None
+        assert zoom_level_display is not None
+
+        # Check initial zoom level
+        initial_zoom = zoom_level_display.text
+        assert "100%" == initial_zoom
+
+        # Test zoom in functionality
+        zoom_in_btn.click()
+        time.sleep(0.2)
+        new_zoom = zoom_level_display.text
+        assert new_zoom != initial_zoom
+        # Should be around 120%
+        assert "120%" == new_zoom
+
+        # Test zoom out functionality
+        zoom_out_btn.click()
+        zoom_out_btn.click()
+        time.sleep(0.2)
+        reduced_zoom = zoom_level_display.text
+        # Should be less than initial
+        assert reduced_zoom != initial_zoom
+
+        # Test reset zoom functionality
+        reset_zoom_btn.click()
+        time.sleep(0.2)
+        reset_zoom = zoom_level_display.text
+        assert "100%" == reset_zoom
+
+        # Test mouse wheel zoom functionality via JavaScript
+        canvas = browser_driver.find_element(By.ID, "canvas")
+        
+        # Simulate mouse wheel zoom in
+        browser_driver.execute_script("""
+            const canvas = document.getElementById('canvas');
+            const event = new WheelEvent('wheel', {
+                deltaY: -100,
+                clientX: 400,
+                clientY: 300,
+                bubbles: true,
+                cancelable: true
+            });
+            canvas.dispatchEvent(event);
+        """)
+        time.sleep(0.2)
+        wheel_zoom = zoom_level_display.text
+        assert wheel_zoom != "100%"  # Should have changed from default
+
+        # Test zoom limits - zoom in repeatedly to test max zoom
+        for _ in range(20):  # Try to exceed max zoom
+            zoom_in_btn.click()
+            time.sleep(0.05)
+        
+        max_zoom = zoom_level_display.text
+        # Should be limited to max zoom (300%)
+        zoom_percent = int(max_zoom.replace('%', ''))
+        assert zoom_percent <= 300
+
+        # Test zoom limits - zoom out repeatedly to test min zoom
+        for _ in range(30):  # Try to exceed min zoom
+            zoom_out_btn.click()
+            time.sleep(0.05)
+        
+        min_zoom = zoom_level_display.text
+        # Should be limited to min zoom (10%)
+        zoom_percent = int(min_zoom.replace('%', ''))
+        assert zoom_percent >= 10
+
+        # Reset for pan testing
+        reset_zoom_btn.click()
+        time.sleep(0.2)
+
+        # Test pan functionality via JavaScript (simulate mouse drag)
+        # First check initial canvas transform
+        initial_transform = browser_driver.execute_script("""
+            return document.getElementById('canvas').style.transform;
+        """)
+
+        # Simulate canvas pan by dragging
+        browser_driver.execute_script("""
+            const canvas = document.getElementById('canvas');
+            const startEvent = new MouseEvent('mousedown', {
+                clientX: 400,
+                clientY: 300,
+                bubbles: true,
+                cancelable: true
+            });
+            canvas.dispatchEvent(startEvent);
+            
+            // Simulate mouse move (pan)
+            const moveEvent = new MouseEvent('mousemove', {
+                clientX: 450,
+                clientY: 350,
+                bubbles: true,
+                cancelable: true
+            });
+            document.dispatchEvent(moveEvent);
+            
+            // Simulate mouse up
+            const endEvent = new MouseEvent('mouseup', {
+                clientX: 450,
+                clientY: 350,
+                bubbles: true,
+                cancelable: true
+            });
+            document.dispatchEvent(endEvent);
+        """)
+
+        time.sleep(0.2)
+
+        # Check that canvas transform has changed (indicating pan worked)
+        final_transform = browser_driver.execute_script("""
+            return document.getElementById('canvas').style.transform;
+        """)
+
+        # Transform should have changed due to panning
+        assert final_transform != initial_transform

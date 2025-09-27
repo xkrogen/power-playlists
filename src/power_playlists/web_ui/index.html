@@ -540,6 +540,12 @@
         <button class="btn" id="loadBtn">Load</button>
         <button class="btn" id="saveBtn">Save</button>
         <button class="btn" id="saveAsBtn">Save As</button>
+        <div class="zoom-controls" style="margin-left: 20px; display: flex; align-items: center; gap: 8px;">
+            <button class="btn btn-secondary" id="zoomOutBtn" title="Zoom Out">🔍-</button>
+            <button class="btn btn-secondary" id="resetZoomBtn" title="Reset Zoom">1:1</button>
+            <button class="btn btn-secondary" id="zoomInBtn" title="Zoom In">🔍+</button>
+            <span id="zoomLevel" style="font-size: 12px; color: #666; min-width: 40px; text-align: center;">100%</span>
+        </div>
         <div style="margin-left: auto; display: flex; gap: 12px;">
             <button class="btn btn-secondary" id="addNodeBtn">Add Node</button>
         </div>
@@ -659,12 +665,22 @@
                 this.currentConfig = null;
                 this.nodeSchemas = null;
 
+                // Zoom and pan properties
+                this.scale = 1.0;
+                this.minScale = 0.1;
+                this.maxScale = 3.0;
+                this.isPanning = false;
+                this.panStart = { x: 0, y: 0 };
+
                 // Template view properties
                 this.isInTemplateView = false;
                 this.currentTemplateNodeId = null;
                 this.templateNodes = new Map();
                 this.templateConnections = [];
                 this.templateCanvasOffset = { x: 0, y: 0 };
+                this.templateScale = 1.0;
+                this.templateIsPanning = false;
+                this.templatePanStart = { x: 0, y: 0 };
 
                 this.initializeElements();
                 this.setupEventListeners();
@@ -699,6 +715,11 @@
                 document.getElementById('saveBtn').addEventListener('click', () => this.saveConfiguration());
                 document.getElementById('saveAsBtn').addEventListener('click', () => this.saveAsConfiguration());
                 document.getElementById('addNodeBtn').addEventListener('click', () => this.showAddNodeModal());
+                
+                // Zoom control buttons
+                document.getElementById('zoomInBtn').addEventListener('click', () => this.zoomIn());
+                document.getElementById('zoomOutBtn').addEventListener('click', () => this.zoomOut());
+                document.getElementById('resetZoomBtn').addEventListener('click', () => this.resetZoom());
 
                 // Modal buttons
                 document.getElementById('cancelBtn').addEventListener('click', () => this.closeModal());
@@ -719,6 +740,7 @@
 
                 // Canvas events (both main and template)
                 this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
                 document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
                 document.addEventListener('mouseup', (e) => this.handleMouseUp(e));
 
@@ -728,6 +750,7 @@
                 // Template canvas events
                 this.templateCanvas = document.getElementById('templateCanvas');
                 this.templateCanvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                this.templateCanvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
                 this.templateCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
             }
 
@@ -938,6 +961,7 @@
                 });
 
                 this.updateConnections();
+                this.updateZoomDisplay(); // Initialize zoom display
             }
 
             // Unified Node Rendering System
@@ -2181,6 +2205,9 @@
                 // Show variables and instances
                 this.displayTemplateVariables(templateData.variables);
                 this.displayTemplateInstances(templateData.instances, templateData.variables);
+                
+                // Update zoom display for template view
+                this.updateZoomDisplay();
             }
 
             loadTemplateNodes(templateNodes) {
@@ -2560,6 +2587,9 @@
                 this.isInTemplateView = false;
                 this.currentTemplateNodeId = null;
                 this.templateView.classList.add('hidden');
+                
+                // Update zoom display for main view
+                this.updateZoomDisplay();
             }
 
             saveTemplate() {
@@ -2847,11 +2877,49 @@
                     this.draggingInTemplate = templateCanvas.contains(nodeElement);
                     
                     e.preventDefault();
+                } else {
+                    // Start panning when clicking on canvas (not on a node)
+                    const isTemplateCanvas = e.target.closest('#templateCanvas');
+                    if (isTemplateCanvas) {
+                        this.templateIsPanning = true;
+                        this.templatePanStart = { x: e.clientX, y: e.clientY };
+                        this.templateCanvas.style.cursor = 'grabbing';
+                    } else if (e.target.closest('#canvas')) {
+                        this.isPanning = true;
+                        this.panStart = { x: e.clientX, y: e.clientY };
+                        this.canvas.style.cursor = 'grabbing';
+                    }
+                    e.preventDefault();
                 }
             }
 
             handleMouseMove(e) {
-                if (this.isDragging) {
+                if (this.isPanning) {
+                    // Handle main canvas panning
+                    const deltaX = e.clientX - this.panStart.x;
+                    const deltaY = e.clientY - this.panStart.y;
+                    
+                    this.canvasOffset.x += deltaX;
+                    this.canvasOffset.y += deltaY;
+                    
+                    this.panStart.x = e.clientX;
+                    this.panStart.y = e.clientY;
+                    
+                    this.updateCanvasTransform();
+                } else if (this.templateIsPanning) {
+                    // Handle template canvas panning
+                    const deltaX = e.clientX - this.templatePanStart.x;
+                    const deltaY = e.clientY - this.templatePanStart.y;
+                    
+                    this.templateCanvasOffset.x += deltaX;
+                    this.templateCanvasOffset.y += deltaY;
+                    
+                    this.templatePanStart.x = e.clientX;
+                    this.templatePanStart.y = e.clientY;
+                    
+                    this.updateTemplateCanvasTransform();
+                } else if (this.isDragging) {
+                    // Handle node dragging
                     let canvasRect;
                     if (this.draggingInTemplate) {
                         canvasRect = this.templateCanvas.getBoundingClientRect();
@@ -2859,8 +2927,15 @@
                         canvasRect = this.canvas.getBoundingClientRect();
                     }
                     
-                    const x = e.clientX - this.dragOffset.x - canvasRect.left;
-                    const y = e.clientY - this.dragOffset.y - canvasRect.top;
+                    // Account for zoom and pan when calculating node position
+                    let x, y;
+                    if (this.draggingInTemplate) {
+                        x = (e.clientX - this.dragOffset.x - canvasRect.left - this.templateCanvasOffset.x) / this.templateScale;
+                        y = (e.clientY - this.dragOffset.y - canvasRect.top - this.templateCanvasOffset.y) / this.templateScale;
+                    } else {
+                        x = (e.clientX - this.dragOffset.x - canvasRect.left - this.canvasOffset.x) / this.scale;
+                        y = (e.clientY - this.dragOffset.y - canvasRect.top - this.canvasOffset.y) / this.scale;
+                    }
                     
                     this.isDragging.style.left = `${Math.max(0, x)}px`;
                     this.isDragging.style.top = `${Math.max(0, y)}px`;
@@ -2889,6 +2964,117 @@
                     this.isDragging = false;
                     this.draggingInTemplate = false;
                     this.hasUnsavedChanges = true;
+                }
+                if (this.isPanning) {
+                    this.isPanning = false;
+                    this.canvas.style.cursor = 'grab';
+                }
+                if (this.templateIsPanning) {
+                    this.templateIsPanning = false;
+                    this.templateCanvas.style.cursor = 'grab';
+                }
+            }
+
+            handleWheel(e) {
+                e.preventDefault();
+                
+                const isTemplateCanvas = e.target.closest('#templateCanvas');
+                const canvas = isTemplateCanvas ? this.templateCanvas : this.canvas;
+                const rect = canvas.getBoundingClientRect();
+                
+                // Get mouse position relative to canvas
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                
+                // Current scale and offset
+                const currentScale = isTemplateCanvas ? this.templateScale : this.scale;
+                const currentOffset = isTemplateCanvas ? this.templateCanvasOffset : this.canvasOffset;
+                
+                // Calculate zoom factor
+                const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+                const newScale = Math.max(this.minScale, Math.min(this.maxScale, currentScale * zoomFactor));
+                
+                if (newScale !== currentScale) {
+                    // Calculate new offset to zoom around mouse position
+                    const scaleChange = newScale / currentScale;
+                    const newOffsetX = mouseX - (mouseX - currentOffset.x) * scaleChange;
+                    const newOffsetY = mouseY - (mouseY - currentOffset.y) * scaleChange;
+                    
+                    if (isTemplateCanvas) {
+                        this.templateScale = newScale;
+                        this.templateCanvasOffset = { x: newOffsetX, y: newOffsetY };
+                        this.updateTemplateCanvasTransform();
+                    } else {
+                        this.scale = newScale;
+                        this.canvasOffset = { x: newOffsetX, y: newOffsetY };
+                        this.updateCanvasTransform();
+                    }
+                    
+                    this.updateZoomDisplay();
+                }
+            }
+
+            updateCanvasTransform() {
+                const transform = `translate(${this.canvasOffset.x}px, ${this.canvasOffset.y}px) scale(${this.scale})`;
+                this.canvas.style.transform = transform;
+                this.canvas.style.transformOrigin = '0 0';
+            }
+
+            updateTemplateCanvasTransform() {
+                const transform = `translate(${this.templateCanvasOffset.x}px, ${this.templateCanvasOffset.y}px) scale(${this.templateScale})`;
+                this.templateCanvas.style.transform = transform;
+                this.templateCanvas.style.transformOrigin = '0 0';
+            }
+
+            resetZoomAndPan() {
+                this.scale = 1.0;
+                this.canvasOffset = { x: 0, y: 0 };
+                this.updateCanvasTransform();
+            }
+
+            resetTemplateZoomAndPan() {
+                this.templateScale = 1.0;
+                this.templateCanvasOffset = { x: 0, y: 0 };
+                this.updateTemplateCanvasTransform();
+            }
+
+            zoomIn() {
+                if (this.isInTemplateView) {
+                    this.templateScale = Math.min(this.maxScale, this.templateScale * 1.2);
+                    this.updateTemplateCanvasTransform();
+                } else {
+                    this.scale = Math.min(this.maxScale, this.scale * 1.2);
+                    this.updateCanvasTransform();
+                }
+                this.updateZoomDisplay();
+            }
+
+            zoomOut() {
+                if (this.isInTemplateView) {
+                    this.templateScale = Math.max(this.minScale, this.templateScale / 1.2);
+                    this.updateTemplateCanvasTransform();
+                } else {
+                    this.scale = Math.max(this.minScale, this.scale / 1.2);
+                    this.updateCanvasTransform();
+                }
+                this.updateZoomDisplay();
+            }
+
+            resetZoom() {
+                if (this.isInTemplateView) {
+                    this.resetTemplateZoomAndPan();
+                } else {
+                    this.resetZoomAndPan();
+                }
+                this.updateZoomDisplay();
+            }
+
+            updateZoomDisplay() {
+                const currentScale = this.isInTemplateView ? this.templateScale : this.scale;
+                const zoomPercent = Math.round(currentScale * 100);
+                const zoomLevelElement = document.getElementById('zoomLevel');
+                if (zoomLevelElement) {
+                    zoomLevelElement.textContent = `${zoomPercent}%`;
                 }
             }
         }
