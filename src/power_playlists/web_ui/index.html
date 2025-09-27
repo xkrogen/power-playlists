@@ -1524,6 +1524,31 @@
 
                 // Then, handle template-related connections
                 this.createTemplateConnections(configData);
+                
+                // Update SVG viewBox to accommodate all nodes including negative coordinates
+                this.updateSVGViewBox();
+            }
+
+            updateSVGViewBox() {
+                // Calculate bounds of all nodes to create appropriate viewBox
+                let minX = 0, minY = 0, maxX = 1000, maxY = 600; // Default bounds
+                
+                if (this.nodes.size > 0) {
+                    const positions = Array.from(this.nodes.values()).map(nodeInfo => ({
+                        x: parseFloat(nodeInfo.element.style.left) || 0,
+                        y: parseFloat(nodeInfo.element.style.top) || 0
+                    }));
+                    
+                    minX = Math.min(...positions.map(p => p.x)) - 100; // Add padding
+                    minY = Math.min(...positions.map(p => p.y)) - 100;
+                    maxX = Math.max(...positions.map(p => p.x)) + 300; // Account for node width + padding
+                    maxY = Math.max(...positions.map(p => p.y)) + 200; // Account for node height + padding
+                }
+                
+                const viewBoxWidth = maxX - minX;
+                const viewBoxHeight = maxY - minY;
+                
+                this.connectionsContainer.setAttribute('viewBox', `${minX} ${minY} ${viewBoxWidth} ${viewBoxHeight}`);
             }
 
             createTemplateConnections(configData) {
@@ -1628,25 +1653,31 @@
                 const connectionKey = `${fromNodeId}-${toNodeId}-${connectionType}`;
                 if (this.connections.some(c => c.key === connectionKey)) return;
                 
-                const fromRect = fromNode.element.getBoundingClientRect();
-                const toRect = toNode.element.getBoundingClientRect();
-                const canvasRect = this.canvas.getBoundingClientRect();
+                // Use the same coordinate system as regular connections
+                const fromLeft = parseFloat(fromNode.element.style.left) || 0;
+                const fromTop = parseFloat(fromNode.element.style.top) || 0;
+                const toLeft = parseFloat(toNode.element.style.left) || 0;
+                const toTop = parseFloat(toNode.element.style.top) || 0;
+                
+                // Use standard node dimensions
+                const nodeWidth = 180;
+                const nodeHeight = 80;
                 
                 // Calculate connection points
                 let fromX, fromY, toX, toY;
                 
                 if (connectionType === 'external-to-template') {
                     // From external node to template node
-                    fromX = fromRect.left - canvasRect.left + fromRect.width;
-                    fromY = fromRect.top - canvasRect.top + fromRect.height / 2;
-                    toX = toRect.left - canvasRect.left;
-                    toY = toRect.top - canvasRect.top + toRect.height / 2;
+                    fromX = fromLeft + nodeWidth;
+                    fromY = fromTop + nodeHeight / 2;
+                    toX = toLeft;
+                    toY = toTop + nodeHeight / 2;
                 } else {
                     // From template node to external node
-                    fromX = fromRect.left - canvasRect.left + fromRect.width;
-                    fromY = fromRect.top - canvasRect.top + fromRect.height / 2;
-                    toX = toRect.left - canvasRect.left;
-                    toY = toRect.top - canvasRect.top + toRect.height / 2;
+                    fromX = fromLeft + nodeWidth;
+                    fromY = fromTop + nodeHeight / 2;
+                    toX = toLeft;
+                    toY = toTop + nodeHeight / 2;
                 }
                 
                 // Create the connection path with distinctive styling for external connections
@@ -1750,16 +1781,21 @@
                 const toNode = this.nodes.get(toNodeId);
                 if (!toNode) return;
                 
-                // Get the positions
-                const templateRect = templateNode.element.getBoundingClientRect();
-                const toRect = toNode.element.getBoundingClientRect();
-                const canvasRect = this.canvas.getBoundingClientRect();
+                // Use the same coordinate system as regular connections
+                const templateLeft = parseFloat(templateNode.element.style.left) || 0;
+                const templateTop = parseFloat(templateNode.element.style.top) || 0;
+                const toLeft = parseFloat(toNode.element.style.left) || 0;
+                const toTop = parseFloat(toNode.element.style.top) || 0;
+                
+                // Use standard node dimensions
+                const nodeWidth = 180;
+                const nodeHeight = 80;
                 
                 // Calculate connection points - from template node edge to target node
-                const fromX = templateRect.left - canvasRect.left + templateRect.width;
-                const fromY = templateRect.top - canvasRect.top + templateRect.height / 2;
-                const toX = toRect.left - canvasRect.left;
-                const toY = toRect.top - canvasRect.top + toRect.height / 2;
+                const fromX = templateLeft + nodeWidth;
+                const fromY = templateTop + nodeHeight / 2;
+                const toX = toLeft;
+                const toY = toTop + nodeHeight / 2;
                 
                 // Create the connection path
                 const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
