@@ -621,3 +621,146 @@ class TestGraphicalEditorBrowser:
         # Verify paths have changed (indicating they updated correctly)
         paths_changed = any(before != after for before, after in zip(connections_before['paths'], connections_after['paths']))
         assert paths_changed, "Connection paths should have updated after node dragging"
+
+    def test_connection_anchoring_accuracy(self, browser_driver, editor_server_with_browser):
+        """Test that connections are properly anchored to node edges, not arbitrary points."""
+        editor, url = editor_server_with_browser
+        
+        browser_driver.get(url)
+        wait = WebDriverWait(browser_driver, 10)
+
+        # Wait for page to load
+        wait.until(EC.presence_of_element_located((By.ID, "canvas")))
+        time.sleep(2)  # Allow configuration to load
+
+        # Get connection anchoring data
+        anchoring_data = browser_driver.execute_script("""
+            const nodes = document.querySelectorAll('.node');
+            const connections = document.querySelectorAll('.connection-line');
+            
+            if (nodes.length === 0 || connections.length === 0) {
+                return { nodeData: [], connectionData: [], skip: true };
+            }
+            
+            const nodeData = Array.from(nodes).map((node, index) => {
+                const rect = node.getBoundingClientRect();
+                const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+                return {
+                    index,
+                    id: node.textContent.trim().split('\\n')[1] || 'unknown',
+                    rect: {
+                        left: rect.left - canvasRect.left,
+                        top: rect.top - canvasRect.top,
+                        width: rect.width,
+                        height: rect.height,
+                        right: rect.left - canvasRect.left + rect.width,
+                        vCenter: rect.top - canvasRect.top + rect.height / 2
+                    }
+                };
+            });
+            
+            const connectionData = Array.from(connections).map((conn, index) => {
+                const d = conn.getAttribute('d');
+                const matches = d.match(/M ([\\d.]+) ([\\d.]+) C .+ ([\\d.]+) ([\\d.]+)/);
+                return {
+                    index,
+                    d,
+                    startPoint: matches ? { x: parseFloat(matches[1]), y: parseFloat(matches[2]) } : null,
+                    endPoint: matches ? { x: parseFloat(matches[3]), y: parseFloat(matches[4]) } : null
+                };
+            });
+            
+            return { nodeData, connectionData, skip: false };
+        """)
+
+        if anchoring_data.get('skip'):
+            pytest.skip("No nodes or connections found in test configuration")
+
+        assert anchoring_data['nodeData'], "Should have node data"
+        assert anchoring_data['connectionData'], "Should have connection data"
+
+        nodes = anchoring_data['nodeData']
+        connections = anchoring_data['connectionData']
+
+        # Verify that connections start and end at reasonable node edge positions
+        for i, conn in enumerate(connections):
+            if conn['startPoint'] and conn['endPoint']:
+                start_x, start_y = conn['startPoint']['x'], conn['startPoint']['y']
+                end_x, end_y = conn['endPoint']['x'], conn['endPoint']['y']
+                
+                # Find nodes that could be source/target based on position
+                potential_sources = [n for n in nodes if abs(n['rect']['right'] - start_x) < 15]
+                potential_targets = [n for n in nodes if abs(n['rect']['left'] - end_x) < 15]
+                
+                assert potential_sources, f"Connection {i} start point ({start_x}, {start_y}) should be near a node's right edge"
+                assert potential_targets, f"Connection {i} end point ({end_x}, {end_y}) should be near a node's left edge"
+                
+                # Verify vertical centering (connection should be near vertical center of nodes)
+                if potential_sources:
+                    source_vcenter = potential_sources[0]['rect']['vCenter']
+                    assert abs(start_y - source_vcenter) < 15, f"Connection start should be near source node vertical center"
+                
+                if potential_targets:
+                    target_vcenter = potential_targets[0]['rect']['vCenter']
+                    assert abs(end_y - target_vcenter) < 15, f"Connection end should be near target node vertical center"
+
+    def test_connection_anchoring_with_different_node_sizes(self, browser_driver, editor_server_with_browser):
+        """Test that connections work correctly with nodes of different sizes."""
+        editor, url = editor_server_with_browser
+        
+        browser_driver.get(url)
+        wait = WebDriverWait(browser_driver, 10)
+
+        # Wait for page to load
+        wait.until(EC.presence_of_element_located((By.ID, "canvas")))
+        time.sleep(2)  # Allow configuration to load
+
+        # Get node size variations and connection anchoring
+        size_data = browser_driver.execute_script("""
+            const nodes = document.querySelectorAll('.node');
+            const connections = document.querySelectorAll('.connection-line');
+            
+            if (nodes.length === 0 || connections.length === 0) {
+                return { nodeSizes: [], connectionAnchors: [], skip: true };
+            }
+            
+            const nodeSizes = Array.from(nodes).map(node => {
+                const rect = node.getBoundingClientRect();
+                return {
+                    width: rect.width,
+                    height: rect.height,
+                    id: node.textContent.trim().split('\\n')[1] || 'unknown'
+                };
+            });
+            
+            const connectionAnchors = Array.from(connections).map(conn => {
+                const d = conn.getAttribute('d');
+                const matches = d.match(/M ([\\d.]+) ([\\d.]+) C .+ ([\\d.]+) ([\\d.]+)/);
+                return matches ? {
+                    startX: parseFloat(matches[1]),
+                    endX: parseFloat(matches[3])
+                } : null;
+            }).filter(Boolean);
+            
+            return { nodeSizes, connectionAnchors, skip: false };
+        """)
+
+        if size_data.get('skip'):
+            pytest.skip("No nodes or connections found in test configuration")
+
+        nodes = size_data['nodeSizes']
+        connections = size_data['connectionAnchors']
+
+        # Verify nodes have different sizes (this validates our test scenario)
+        widths = [node['width'] for node in nodes]
+        if len(set(widths)) > 1:
+            # We have nodes with different sizes - verify connections adapt accordingly
+            assert len(connections) > 0, "Should have connections to test"
+            
+            # Check that connection coordinates are not using the old fixed values
+            old_fixed_coordinates = [140, 360, 580, 800]  # Old hard-coded values
+            for conn in connections:
+                start_x, end_x = conn['startX'], conn['endX']
+                # Connections should not exactly match the old fixed coordinates
+                assert not (start_x in old_fixed_coordinates and end_x in old_fixed_coordinates), \
+                       f"Connection should not use old fixed coordinates: start={start_x}, end={end_x}"

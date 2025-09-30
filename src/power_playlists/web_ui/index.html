@@ -1843,22 +1843,26 @@
                 
                 if (!fromNode || !toNode) return;
 
-                // Since the SVG is inside the canvas and transforms with it, 
-                // we can use the node positions and sizes directly from their styles
-                const fromLeft = parseFloat(fromNode.element.style.left) || 0;
-                const fromTop = parseFloat(fromNode.element.style.top) || 0;
-                const toLeft = parseFloat(toNode.element.style.left) || 0;
-                const toTop = parseFloat(toNode.element.style.top) || 0;
+                // Get actual node dimensions from their rendered sizes
+                const fromRect = fromNode.element.getBoundingClientRect();
+                const toRect = toNode.element.getBoundingClientRect();
+                const canvasRect = this.canvas.getBoundingClientRect();
                 
-                // Use standard node dimensions (most nodes are similar size)
-                const nodeWidth = 180; // Standard node width
-                const nodeHeight = 80;  // Approximate node height
+                // Convert to canvas-relative coordinates
+                const fromCanvasLeft = fromRect.left - canvasRect.left;
+                const fromCanvasTop = fromRect.top - canvasRect.top;
+                const fromCanvasRight = fromCanvasLeft + fromRect.width;
+                const fromCanvasVCenter = fromCanvasTop + fromRect.height / 2;
                 
-                // Calculate center points
-                const fromX = fromLeft + nodeWidth / 2;
-                const fromY = fromTop + nodeHeight / 2;
-                const toX = toLeft + nodeWidth / 2;
-                const toY = toTop + nodeHeight / 2;
+                const toCanvasLeft = toRect.left - canvasRect.left;
+                const toCanvasTop = toRect.top - canvasRect.top;
+                const toCanvasVCenter = toCanvasTop + toRect.height / 2;
+                
+                // Connection should go from right edge of source node to left edge of target node
+                const fromX = fromCanvasRight;
+                const fromY = fromCanvasVCenter;
+                const toX = toCanvasLeft;
+                const toY = toCanvasVCenter;
 
                 const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
                 const controlPoint1X = fromX + (toX - fromX) * 0.5;
