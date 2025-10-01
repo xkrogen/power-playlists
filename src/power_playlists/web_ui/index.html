@@ -540,6 +540,12 @@
         <button class="btn" id="loadBtn">Load</button>
         <button class="btn" id="saveBtn">Save</button>
         <button class="btn" id="saveAsBtn">Save As</button>
+        <div class="zoom-controls" style="margin-left: 20px; display: flex; align-items: center; gap: 8px;">
+            <button class="btn btn-secondary" id="zoomOutBtn" title="Zoom Out">🔍-</button>
+            <button class="btn btn-secondary" id="resetZoomBtn" title="Reset Zoom">1:1</button>
+            <button class="btn btn-secondary" id="zoomInBtn" title="Zoom In">🔍+</button>
+            <span id="zoomLevel" style="font-size: 12px; color: #666; min-width: 40px; text-align: center;">100%</span>
+        </div>
         <div style="margin-left: auto; display: flex; gap: 12px;">
             <button class="btn btn-secondary" id="addNodeBtn">Add Node</button>
         </div>
@@ -659,12 +665,22 @@
                 this.currentConfig = null;
                 this.nodeSchemas = null;
 
+                // Zoom and pan properties
+                this.scale = 1.0;
+                this.minScale = 0.1;
+                this.maxScale = 3.0;
+                this.isPanning = false;
+                this.panStart = { x: 0, y: 0 };
+
                 // Template view properties
                 this.isInTemplateView = false;
                 this.currentTemplateNodeId = null;
                 this.templateNodes = new Map();
                 this.templateConnections = [];
                 this.templateCanvasOffset = { x: 0, y: 0 };
+                this.templateScale = 1.0;
+                this.templateIsPanning = false;
+                this.templatePanStart = { x: 0, y: 0 };
 
                 this.initializeElements();
                 this.setupEventListeners();
@@ -699,6 +715,11 @@
                 document.getElementById('saveBtn').addEventListener('click', () => this.saveConfiguration());
                 document.getElementById('saveAsBtn').addEventListener('click', () => this.saveAsConfiguration());
                 document.getElementById('addNodeBtn').addEventListener('click', () => this.showAddNodeModal());
+                
+                // Zoom control buttons
+                document.getElementById('zoomInBtn').addEventListener('click', () => this.zoomIn());
+                document.getElementById('zoomOutBtn').addEventListener('click', () => this.zoomOut());
+                document.getElementById('resetZoomBtn').addEventListener('click', () => this.resetZoom());
 
                 // Modal buttons
                 document.getElementById('cancelBtn').addEventListener('click', () => this.closeModal());
@@ -719,6 +740,15 @@
 
                 // Canvas events (both main and template)
                 this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+                
+                // Also add wheel listener to canvas container for better coverage
+                const canvasContainer = document.querySelector('.canvas-container');
+                if (canvasContainer) {
+                    canvasContainer.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+                    canvasContainer.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                }
+                
                 document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
                 document.addEventListener('mouseup', (e) => this.handleMouseUp(e));
 
@@ -728,7 +758,15 @@
                 // Template canvas events
                 this.templateCanvas = document.getElementById('templateCanvas');
                 this.templateCanvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                this.templateCanvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
                 this.templateCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
+                
+                // Also add wheel listener to template canvas container for better coverage
+                const templateCanvasContainer = document.querySelector('.template-canvas-container');
+                if (templateCanvasContainer) {
+                    templateCanvasContainer.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+                    templateCanvasContainer.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                }
             }
 
             async loadNodeSchemas() {
@@ -938,6 +976,7 @@
                 });
 
                 this.updateConnections();
+                this.updateZoomDisplay(); // Initialize zoom display
             }
 
             // Unified Node Rendering System
@@ -1485,6 +1524,31 @@
 
                 // Then, handle template-related connections
                 this.createTemplateConnections(configData);
+                
+                // Update SVG viewBox to accommodate all nodes including negative coordinates
+                this.updateSVGViewBox();
+            }
+
+            updateSVGViewBox() {
+                // Calculate bounds of all nodes to create appropriate viewBox
+                let minX = 0, minY = 0, maxX = 1000, maxY = 600; // Default bounds
+                
+                if (this.nodes.size > 0) {
+                    const positions = Array.from(this.nodes.values()).map(nodeInfo => ({
+                        x: parseFloat(nodeInfo.element.style.left) || 0,
+                        y: parseFloat(nodeInfo.element.style.top) || 0
+                    }));
+                    
+                    minX = Math.min(...positions.map(p => p.x)) - 100; // Add padding
+                    minY = Math.min(...positions.map(p => p.y)) - 100;
+                    maxX = Math.max(...positions.map(p => p.x)) + 300; // Account for node width + padding
+                    maxY = Math.max(...positions.map(p => p.y)) + 200; // Account for node height + padding
+                }
+                
+                const viewBoxWidth = maxX - minX;
+                const viewBoxHeight = maxY - minY;
+                
+                this.connectionsContainer.setAttribute('viewBox', `${minX} ${minY} ${viewBoxWidth} ${viewBoxHeight}`);
             }
 
             createTemplateConnections(configData) {
@@ -1589,25 +1653,31 @@
                 const connectionKey = `${fromNodeId}-${toNodeId}-${connectionType}`;
                 if (this.connections.some(c => c.key === connectionKey)) return;
                 
-                const fromRect = fromNode.element.getBoundingClientRect();
-                const toRect = toNode.element.getBoundingClientRect();
-                const canvasRect = this.canvas.getBoundingClientRect();
+                // Use the same coordinate system as regular connections
+                const fromLeft = parseFloat(fromNode.element.style.left) || 0;
+                const fromTop = parseFloat(fromNode.element.style.top) || 0;
+                const toLeft = parseFloat(toNode.element.style.left) || 0;
+                const toTop = parseFloat(toNode.element.style.top) || 0;
+                
+                // Use standard node dimensions
+                const nodeWidth = 180;
+                const nodeHeight = 80;
                 
                 // Calculate connection points
                 let fromX, fromY, toX, toY;
                 
                 if (connectionType === 'external-to-template') {
                     // From external node to template node
-                    fromX = fromRect.left - canvasRect.left + fromRect.width;
-                    fromY = fromRect.top - canvasRect.top + fromRect.height / 2;
-                    toX = toRect.left - canvasRect.left;
-                    toY = toRect.top - canvasRect.top + toRect.height / 2;
+                    fromX = fromLeft + nodeWidth;
+                    fromY = fromTop + nodeHeight / 2;
+                    toX = toLeft;
+                    toY = toTop + nodeHeight / 2;
                 } else {
                     // From template node to external node
-                    fromX = fromRect.left - canvasRect.left + fromRect.width;
-                    fromY = fromRect.top - canvasRect.top + fromRect.height / 2;
-                    toX = toRect.left - canvasRect.left;
-                    toY = toRect.top - canvasRect.top + toRect.height / 2;
+                    fromX = fromLeft + nodeWidth;
+                    fromY = fromTop + nodeHeight / 2;
+                    toX = toLeft;
+                    toY = toTop + nodeHeight / 2;
                 }
                 
                 // Create the connection path with distinctive styling for external connections
@@ -1711,16 +1781,21 @@
                 const toNode = this.nodes.get(toNodeId);
                 if (!toNode) return;
                 
-                // Get the positions
-                const templateRect = templateNode.element.getBoundingClientRect();
-                const toRect = toNode.element.getBoundingClientRect();
-                const canvasRect = this.canvas.getBoundingClientRect();
+                // Use the same coordinate system as regular connections
+                const templateLeft = parseFloat(templateNode.element.style.left) || 0;
+                const templateTop = parseFloat(templateNode.element.style.top) || 0;
+                const toLeft = parseFloat(toNode.element.style.left) || 0;
+                const toTop = parseFloat(toNode.element.style.top) || 0;
+                
+                // Use standard node dimensions
+                const nodeWidth = 180;
+                const nodeHeight = 80;
                 
                 // Calculate connection points - from template node edge to target node
-                const fromX = templateRect.left - canvasRect.left + templateRect.width;
-                const fromY = templateRect.top - canvasRect.top + templateRect.height / 2;
-                const toX = toRect.left - canvasRect.left;
-                const toY = toRect.top - canvasRect.top + toRect.height / 2;
+                const fromX = templateLeft + nodeWidth;
+                const fromY = templateTop + nodeHeight / 2;
+                const toX = toLeft;
+                const toY = toTop + nodeHeight / 2;
                 
                 // Create the connection path
                 const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
@@ -1768,14 +1843,27 @@
                 
                 if (!fromNode || !toNode) return;
 
+                // Use canvas-internal coordinates (style.left/top) to avoid double-transformation
+                // The SVG is inside the canvas and gets transformed with it, so we need untransformed coords
+                const fromLeft = parseFloat(fromNode.element.style.left) || 0;
+                const fromTop = parseFloat(fromNode.element.style.top) || 0;
+                const toLeft = parseFloat(toNode.element.style.left) || 0;
+                const toTop = parseFloat(toNode.element.style.top) || 0;
+                
+                // Get actual node dimensions from their rendered sizes
                 const fromRect = fromNode.element.getBoundingClientRect();
                 const toRect = toNode.element.getBoundingClientRect();
-                const canvasRect = this.canvas.getBoundingClientRect();
-
-                const fromX = fromRect.left - canvasRect.left + fromRect.width / 2;
-                const fromY = fromRect.top - canvasRect.top + fromRect.height / 2;
-                const toX = toRect.left - canvasRect.left + toRect.width / 2;
-                const toY = toRect.top - canvasRect.top + toRect.height / 2;
+                
+                // Calculate canvas-internal coordinates
+                const fromCanvasRight = fromLeft + fromRect.width;
+                const fromCanvasVCenter = fromTop + fromRect.height / 2;
+                const toCanvasVCenter = toTop + toRect.height / 2;
+                
+                // Connection should go from right edge of source node to left edge of target node
+                const fromX = fromCanvasRight;
+                const fromY = fromCanvasVCenter;
+                const toX = toLeft;
+                const toY = toCanvasVCenter;
 
                 const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
                 const controlPoint1X = fromX + (toX - fromX) * 0.5;
@@ -1787,6 +1875,9 @@
                 
                 path.setAttribute("d", pathData);
                 path.setAttribute("class", "connection-line");
+                path.setAttribute("stroke", "#6c757d");
+                path.setAttribute("stroke-width", "2");
+                path.setAttribute("fill", "none");
 
                 // Add arrow marker
                 const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
@@ -2181,6 +2272,9 @@
                 // Show variables and instances
                 this.displayTemplateVariables(templateData.variables);
                 this.displayTemplateInstances(templateData.instances, templateData.variables);
+                
+                // Update zoom display for template view
+                this.updateZoomDisplay();
             }
 
             loadTemplateNodes(templateNodes) {
@@ -2560,6 +2654,9 @@
                 this.isInTemplateView = false;
                 this.currentTemplateNodeId = null;
                 this.templateView.classList.add('hidden');
+                
+                // Update zoom display for main view
+                this.updateZoomDisplay();
             }
 
             saveTemplate() {
@@ -2834,11 +2931,34 @@
             handleMouseDown(e) {
                 const nodeElement = e.target.closest('.node');
                 if (nodeElement) {
-                    const rect = nodeElement.getBoundingClientRect();
+                    // Calculate drag offset more precisely accounting for transforms
+                    const isTemplateCanvas = e.target.closest('#templateCanvas') || e.target.closest('.template-canvas-container');
+                    
+                    // Get the container rect (untransformed)
+                    const containerRect = isTemplateCanvas ? 
+                        document.querySelector('.template-canvas-container').getBoundingClientRect() :
+                        document.querySelector('.canvas-container').getBoundingClientRect();
+                    
+                    const currentScale = isTemplateCanvas ? this.templateScale : this.scale;
+                    const currentOffset = isTemplateCanvas ? this.templateCanvasOffset : this.canvasOffset;
+                    
+                    // Calculate mouse position in canvas coordinates
+                    const mouseXInContainer = e.clientX - containerRect.left;
+                    const mouseYInContainer = e.clientY - containerRect.top;
+                    
+                    // Get node's current position in canvas coordinates
+                    const nodeLeft = parseFloat(nodeElement.style.left) || 0;
+                    const nodeTop = parseFloat(nodeElement.style.top) || 0;
+                    
+                    // Calculate offset from mouse to node origin in canvas coordinates
+                    const canvasMouseX = (mouseXInContainer - currentOffset.x) / currentScale;
+                    const canvasMouseY = (mouseYInContainer - currentOffset.y) / currentScale;
+                    
                     this.dragOffset = {
-                        x: e.clientX - rect.left,
-                        y: e.clientY - rect.top
+                        x: canvasMouseX - nodeLeft,
+                        y: canvasMouseY - nodeTop
                     };
+                    
                     this.isDragging = nodeElement;
                     this.selectNode(nodeElement);
                     
@@ -2847,23 +2967,79 @@
                     this.draggingInTemplate = templateCanvas.contains(nodeElement);
                     
                     e.preventDefault();
+                } else {
+                    // Start panning when clicking on canvas (not on a node)
+                    const isTemplateCanvas = e.target.closest('#templateCanvas') || e.target.closest('.template-canvas-container');
+                    const isInMainCanvas = e.target.closest('#canvas') || e.target.closest('.canvas-container');
+                    
+                    if (isTemplateCanvas) {
+                        this.templateIsPanning = true;
+                        this.templatePanStart = { x: e.clientX, y: e.clientY };
+                        this.templateCanvas.style.cursor = 'grabbing';
+                    } else if (isInMainCanvas) {
+                        this.isPanning = true;
+                        this.panStart = { x: e.clientX, y: e.clientY };
+                        this.canvas.style.cursor = 'grabbing';
+                    }
+                    e.preventDefault();
                 }
             }
 
             handleMouseMove(e) {
-                if (this.isDragging) {
+                if (this.isPanning) {
+                    // Handle main canvas panning
+                    const deltaX = e.clientX - this.panStart.x;
+                    const deltaY = e.clientY - this.panStart.y;
+                    
+                    this.canvasOffset.x += deltaX;
+                    this.canvasOffset.y += deltaY;
+                    
+                    this.panStart.x = e.clientX;
+                    this.panStart.y = e.clientY;
+                    
+                    this.updateCanvasTransform();
+                } else if (this.templateIsPanning) {
+                    // Handle template canvas panning
+                    const deltaX = e.clientX - this.templatePanStart.x;
+                    const deltaY = e.clientY - this.templatePanStart.y;
+                    
+                    this.templateCanvasOffset.x += deltaX;
+                    this.templateCanvasOffset.y += deltaY;
+                    
+                    this.templatePanStart.x = e.clientX;
+                    this.templatePanStart.y = e.clientY;
+                    
+                    this.updateTemplateCanvasTransform();
+                } else if (this.isDragging) {
+                    // Handle node dragging
                     let canvasRect;
+                    let currentScale, currentOffset;
+                    
                     if (this.draggingInTemplate) {
                         canvasRect = this.templateCanvas.getBoundingClientRect();
+                        currentScale = this.templateScale;
+                        currentOffset = this.templateCanvasOffset;
                     } else {
                         canvasRect = this.canvas.getBoundingClientRect();
+                        currentScale = this.scale;
+                        currentOffset = this.canvasOffset;
                     }
                     
-                    const x = e.clientX - this.dragOffset.x - canvasRect.left;
-                    const y = e.clientY - this.dragOffset.y - canvasRect.top;
+                    // Calculate mouse position in canvas coordinates, accounting for zoom and pan
+                    // First, get the mouse position relative to the canvas container (not the transformed canvas)
+                    const containerRect = this.draggingInTemplate ? 
+                        document.querySelector('.template-canvas-container').getBoundingClientRect() :
+                        document.querySelector('.canvas-container').getBoundingClientRect();
                     
-                    this.isDragging.style.left = `${Math.max(0, x)}px`;
-                    this.isDragging.style.top = `${Math.max(0, y)}px`;
+                    const mouseXInContainer = e.clientX - containerRect.left;
+                    const mouseYInContainer = e.clientY - containerRect.top;
+                    
+                    // Convert to canvas internal coordinates (accounting for scale and offset)
+                    const x = (mouseXInContainer - currentOffset.x - this.dragOffset.x) / currentScale;
+                    const y = (mouseYInContainer - currentOffset.y - this.dragOffset.y) / currentScale;
+                    
+                    this.isDragging.style.left = `${x}px`;
+                    this.isDragging.style.top = `${y}px`;
                     
                     // Update stored position for main canvas nodes
                     if (!this.draggingInTemplate) {
@@ -2889,6 +3065,117 @@
                     this.isDragging = false;
                     this.draggingInTemplate = false;
                     this.hasUnsavedChanges = true;
+                }
+                if (this.isPanning) {
+                    this.isPanning = false;
+                    this.canvas.style.cursor = 'grab';
+                }
+                if (this.templateIsPanning) {
+                    this.templateIsPanning = false;
+                    this.templateCanvas.style.cursor = 'grab';
+                }
+            }
+
+            handleWheel(e) {
+                e.preventDefault();
+                
+                const isTemplateCanvas = e.target.closest('#templateCanvas') || e.target.closest('.template-canvas-container');
+                const canvas = isTemplateCanvas ? this.templateCanvas : this.canvas;
+                const rect = canvas.getBoundingClientRect();
+                
+                // Get mouse position relative to canvas
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                
+                // Current scale and offset
+                const currentScale = isTemplateCanvas ? this.templateScale : this.scale;
+                const currentOffset = isTemplateCanvas ? this.templateCanvasOffset : this.canvasOffset;
+                
+                // Calculate zoom factor (very reduced speed for better UX)
+                const zoomFactor = e.deltaY > 0 ? 0.9875 : 1.0125;
+                const newScale = Math.max(this.minScale, Math.min(this.maxScale, currentScale * zoomFactor));
+                
+                if (newScale !== currentScale) {
+                    // Calculate new offset to zoom around mouse position
+                    const scaleChange = newScale / currentScale;
+                    const newOffsetX = mouseX - (mouseX - currentOffset.x) * scaleChange;
+                    const newOffsetY = mouseY - (mouseY - currentOffset.y) * scaleChange;
+                    
+                    if (isTemplateCanvas) {
+                        this.templateScale = newScale;
+                        this.templateCanvasOffset = { x: newOffsetX, y: newOffsetY };
+                        this.updateTemplateCanvasTransform();
+                    } else {
+                        this.scale = newScale;
+                        this.canvasOffset = { x: newOffsetX, y: newOffsetY };
+                        this.updateCanvasTransform();
+                    }
+                    
+                    this.updateZoomDisplay();
+                }
+            }
+
+            updateCanvasTransform() {
+                const transform = `translate(${this.canvasOffset.x}px, ${this.canvasOffset.y}px) scale(${this.scale})`;
+                this.canvas.style.transform = transform;
+                this.canvas.style.transformOrigin = '0 0';
+            }
+
+            updateTemplateCanvasTransform() {
+                const transform = `translate(${this.templateCanvasOffset.x}px, ${this.templateCanvasOffset.y}px) scale(${this.templateScale})`;
+                this.templateCanvas.style.transform = transform;
+                this.templateCanvas.style.transformOrigin = '0 0';
+            }
+
+            resetZoomAndPan() {
+                this.scale = 1.0;
+                this.canvasOffset = { x: 0, y: 0 };
+                this.updateCanvasTransform();
+            }
+
+            resetTemplateZoomAndPan() {
+                this.templateScale = 1.0;
+                this.templateCanvasOffset = { x: 0, y: 0 };
+                this.updateTemplateCanvasTransform();
+            }
+
+            zoomIn() {
+                if (this.isInTemplateView) {
+                    this.templateScale = Math.min(this.maxScale, this.templateScale * 1.2);
+                    this.updateTemplateCanvasTransform();
+                } else {
+                    this.scale = Math.min(this.maxScale, this.scale * 1.2);
+                    this.updateCanvasTransform();
+                }
+                this.updateZoomDisplay();
+            }
+
+            zoomOut() {
+                if (this.isInTemplateView) {
+                    this.templateScale = Math.max(this.minScale, this.templateScale / 1.2);
+                    this.updateTemplateCanvasTransform();
+                } else {
+                    this.scale = Math.max(this.minScale, this.scale / 1.2);
+                    this.updateCanvasTransform();
+                }
+                this.updateZoomDisplay();
+            }
+
+            resetZoom() {
+                if (this.isInTemplateView) {
+                    this.resetTemplateZoomAndPan();
+                } else {
+                    this.resetZoomAndPan();
+                }
+                this.updateZoomDisplay();
+            }
+
+            updateZoomDisplay() {
+                const currentScale = this.isInTemplateView ? this.templateScale : this.scale;
+                const zoomPercent = Math.round(currentScale * 100);
+                const zoomLevelElement = document.getElementById('zoomLevel');
+                if (zoomLevelElement) {
+                    zoomLevelElement.textContent = `${zoomPercent}%`;
                 }
             }
         }
