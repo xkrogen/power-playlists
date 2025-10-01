@@ -633,7 +633,7 @@ class TestGraphicalEditorBrowser:
         wait.until(EC.presence_of_element_located((By.ID, "canvas")))
         time.sleep(2)  # Allow configuration to load
 
-        # Get connection anchoring data
+        # Get connection anchoring data using canvas-internal coordinates
         anchoring_data = browser_driver.execute_script("""
             const nodes = document.querySelectorAll('.node');
             const connections = document.querySelectorAll('.connection-line');
@@ -643,18 +643,21 @@ class TestGraphicalEditorBrowser:
             }
             
             const nodeData = Array.from(nodes).map((node, index) => {
+                // Use canvas-internal coordinates (style.left/top) to match the connection drawing logic
+                const left = parseFloat(node.style.left) || 0;
+                const top = parseFloat(node.style.top) || 0;
                 const rect = node.getBoundingClientRect();
-                const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+                
                 return {
                     index,
                     id: node.textContent.trim().split('\\n')[1] || 'unknown',
                     rect: {
-                        left: rect.left - canvasRect.left,
-                        top: rect.top - canvasRect.top,
+                        left: left,
+                        top: top,
                         width: rect.width,
                         height: rect.height,
-                        right: rect.left - canvasRect.left + rect.width,
-                        vCenter: rect.top - canvasRect.top + rect.height / 2
+                        right: left + rect.width,
+                        vCenter: top + rect.height / 2
                     }
                 };
             });
