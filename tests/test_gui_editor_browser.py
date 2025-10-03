@@ -32,6 +32,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.action_chains import ActionChains
 
 from power_playlists.gui_editor import ConfigurationRequestHandler, WebConfigurationEditor
 from power_playlists.utils import AppConfig
@@ -372,3 +373,44 @@ class TestGraphicalEditorBrowser:
             if editor.httpd:
                 editor.httpd.shutdown()
                 editor.httpd.server_close()
+
+    def test_zoom_and_pan_in_browser(self, browser_driver, editor_server_with_browser):
+        """Test zoom and pan functionality in the browser."""
+        editor, url = editor_server_with_browser
+        browser_driver.get(url)
+        wait = WebDriverWait(browser_driver, 10)
+        canvas = wait.until(EC.presence_of_element_located((By.ID, "canvas")))
+        time.sleep(1)
+
+        # Test zoom in
+        initial_transform = canvas.get_attribute("style")
+        browser_driver.find_element(By.ID, "zoomInBtn").click()
+        time.sleep(0.5)
+        zoomed_in_transform = canvas.get_attribute("style")
+        assert initial_transform != zoomed_in_transform
+        assert "scale(1.1)" in zoomed_in_transform
+
+        # Test zoom out
+        browser_driver.find_element(By.ID, "zoomOutBtn").click()
+        time.sleep(0.5)
+        zoomed_out_transform = canvas.get_attribute("style")
+        assert zoomed_in_transform != zoomed_out_transform
+        assert "scale(1)" in zoomed_out_transform
+
+        # Test reset zoom
+        browser_driver.find_element(By.ID, "zoomInBtn").click()
+        time.sleep(0.5)
+        browser_driver.find_element(By.ID, "resetZoomBtn").click()
+        time.sleep(0.5)
+        reset_transform = canvas.get_attribute("style")
+        assert "scale(1)" in reset_transform
+        assert "translate(0px, 0px)" in reset_transform
+
+        # Test panning
+        pan_initial_transform = canvas.get_attribute("style")
+        action = ActionChains(browser_driver)
+        action.drag_and_drop_by_offset(canvas, 100, 50).perform()
+        time.sleep(0.5)
+        panned_transform = canvas.get_attribute("style")
+        assert pan_initial_transform != panned_transform
+        assert "translate(100px, 50px)" in panned_transform
