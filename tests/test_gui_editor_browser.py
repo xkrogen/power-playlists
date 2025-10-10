@@ -372,3 +372,398 @@ class TestGraphicalEditorBrowser:
             if editor.httpd:
                 editor.httpd.shutdown()
                 editor.httpd.server_close()
+
+    def test_zoom_and_pan_functionality(self, browser_driver, editor_server_with_browser):
+        """Test zoom and pan functionality in the GUI editor."""
+        editor, url = editor_server_with_browser
+
+        browser_driver.get(url)
+        wait = WebDriverWait(browser_driver, 10)
+
+        # Wait for page to load
+        wait.until(EC.presence_of_element_located((By.ID, "canvas")))
+        time.sleep(2)  # Allow configuration to load
+
+        # Test zoom control buttons exist
+        zoom_in_btn = browser_driver.find_element(By.ID, "zoomInBtn")
+        zoom_out_btn = browser_driver.find_element(By.ID, "zoomOutBtn")
+        reset_zoom_btn = browser_driver.find_element(By.ID, "resetZoomBtn")
+        zoom_level_display = browser_driver.find_element(By.ID, "zoomLevel")
+
+        assert zoom_in_btn is not None
+        assert zoom_out_btn is not None
+        assert reset_zoom_btn is not None
+        assert zoom_level_display is not None
+
+        # Check initial zoom level
+        initial_zoom = zoom_level_display.text
+        assert initial_zoom == "100%"
+
+        # Test zoom in functionality
+        zoom_in_btn.click()
+        time.sleep(0.2)
+        new_zoom = zoom_level_display.text
+        assert new_zoom != initial_zoom
+        # Should be around 120%
+        assert new_zoom == "120%"
+
+        # Test zoom out functionality
+        zoom_out_btn.click()
+        zoom_out_btn.click()
+        time.sleep(0.2)
+        reduced_zoom = zoom_level_display.text
+        # Should be less than initial
+        assert reduced_zoom != initial_zoom
+
+        # Test reset zoom functionality
+        reset_zoom_btn.click()
+        time.sleep(0.2)
+        reset_zoom = zoom_level_display.text
+        assert reset_zoom == "100%"
+
+        # Test mouse wheel zoom functionality via JavaScript
+
+        # Simulate mouse wheel zoom in
+        browser_driver.execute_script("""
+            const canvas = document.getElementById('canvas');
+            const event = new WheelEvent('wheel', {
+                deltaY: -100,
+                clientX: 400,
+                clientY: 300,
+                bubbles: true,
+                cancelable: true
+            });
+            canvas.dispatchEvent(event);
+        """)
+        time.sleep(0.2)
+        wheel_zoom = zoom_level_display.text
+        assert wheel_zoom != "100%"  # Should have changed from default
+
+        # Test zoom limits - zoom in repeatedly to test max zoom
+        for _ in range(20):  # Try to exceed max zoom
+            zoom_in_btn.click()
+            time.sleep(0.05)
+
+        max_zoom = zoom_level_display.text
+        # Should be limited to max zoom (300%)
+        zoom_percent = int(max_zoom.replace("%", ""))
+        assert zoom_percent <= 300
+
+        # Test zoom limits - zoom out repeatedly to test min zoom
+        for _ in range(30):  # Try to exceed min zoom
+            zoom_out_btn.click()
+            time.sleep(0.05)
+
+        min_zoom = zoom_level_display.text
+        # Should be limited to min zoom (10%)
+        zoom_percent = int(min_zoom.replace("%", ""))
+        assert zoom_percent >= 10
+
+        # Reset for pan testing
+        reset_zoom_btn.click()
+        time.sleep(0.2)
+
+        # Test pan functionality via JavaScript (simulate mouse drag)
+        # First check initial canvas transform
+        initial_transform = browser_driver.execute_script("""
+            return document.getElementById('canvas').style.transform;
+        """)
+
+        # Simulate canvas pan by dragging
+        browser_driver.execute_script("""
+            const canvas = document.getElementById('canvas');
+            const startEvent = new MouseEvent('mousedown', {
+                clientX: 400,
+                clientY: 300,
+                bubbles: true,
+                cancelable: true
+            });
+            canvas.dispatchEvent(startEvent);
+            
+            // Simulate mouse move (pan)
+            const moveEvent = new MouseEvent('mousemove', {
+                clientX: 450,
+                clientY: 350,
+                bubbles: true,
+                cancelable: true
+            });
+            document.dispatchEvent(moveEvent);
+            
+            // Simulate mouse up
+            const endEvent = new MouseEvent('mouseup', {
+                clientX: 450,
+                clientY: 350,
+                bubbles: true,
+                cancelable: true
+            });
+            document.dispatchEvent(endEvent);
+        """)
+
+        time.sleep(0.2)
+
+        # Check that canvas transform has changed (indicating pan worked)
+        final_transform = browser_driver.execute_script("""
+            return document.getElementById('canvas').style.transform;
+        """)
+
+        # Transform should have changed due to panning
+        assert final_transform != initial_transform
+
+    def test_connection_rendering_after_zoom_and_drag(self, browser_driver, editor_server_with_browser):
+        """Test that connections render correctly after zooming and dragging nodes."""
+        editor, url = editor_server_with_browser
+        
+        browser_driver.get(url)
+        wait = WebDriverWait(browser_driver, 10)
+
+        # Wait for page to load
+        wait.until(EC.presence_of_element_located((By.ID, "canvas")))
+        time.sleep(2)  # Allow configuration to load
+
+        # Verify we have connections initially
+        connections_before = browser_driver.execute_script("""
+            const connections = document.querySelectorAll('.connection-line');
+            return {
+                count: connections.length,
+                paths: Array.from(connections).map(conn => conn.getAttribute('d'))
+            };
+        """)
+        
+        if connections_before['count'] == 0:
+            # No connections in default config, skip test
+            pytest.skip("No connections found in test configuration")
+
+        # Apply zoom
+        browser_driver.execute_script("""
+            const canvas = document.getElementById('canvas');
+            for (let i = 0; i < 10; i++) {
+                const event = new WheelEvent('wheel', {
+                    deltaY: -100,
+                    clientX: 400,
+                    clientY: 300,
+                    bubbles: true,
+                    cancelable: true
+                });
+                canvas.dispatchEvent(event);
+            }
+        """)
+        
+        time.sleep(0.5)
+        
+        # Get zoom level
+        zoom_level = browser_driver.find_element(By.ID, "zoomLevel").text
+        assert zoom_level != "100%", "Zoom should have changed"
+
+        # Drag a node
+        nodes = browser_driver.find_elements(By.CSS_SELECTOR, ".node")
+        if len(nodes) > 0:
+            node = nodes[0]
+            browser_driver.execute_script("""
+                const node = arguments[0];
+                const rect = node.getBoundingClientRect();
+                const startX = rect.left + rect.width / 2;
+                const startY = rect.top + rect.height / 2;
+                
+                // Start drag
+                const mouseDown = new MouseEvent('mousedown', {
+                    clientX: startX,
+                    clientY: startY,
+                    bubbles: true,
+                    cancelable: true
+                });
+                node.dispatchEvent(mouseDown);
+                
+                // Move mouse
+                const mouseMove = new MouseEvent('mousemove', {
+                    clientX: startX + 100,
+                    clientY: startY + 80,
+                    bubbles: true,
+                    cancelable: true
+                });
+                document.dispatchEvent(mouseMove);
+                
+                // End drag
+                const mouseUp = new MouseEvent('mouseup', {
+                    clientX: startX + 100,
+                    clientY: startY + 80,
+                    bubbles: true,
+                    cancelable: true
+                });
+                document.dispatchEvent(mouseUp);
+            """, node)
+            
+            time.sleep(0.5)
+
+        # Check connections after zoom and drag
+        connections_after = browser_driver.execute_script("""
+            const connections = document.querySelectorAll('.connection-line');
+            return {
+                count: connections.length,
+                paths: Array.from(connections).map(conn => conn.getAttribute('d')),
+                hasValidPaths: Array.from(connections).every(conn => {
+                    const path = conn.getAttribute('d');
+                    // Check that path contains valid coordinates (not NaN or extremely large values)
+                    const matches = path.match(/[+-]?\\d*\\.?\\d+/g);
+                    if (!matches) return false;
+                    return matches.every(num => {
+                        const val = parseFloat(num);
+                        return !isNaN(val) && Math.abs(val) < 50000; // Reasonable coordinate bounds
+                    });
+                })
+            };
+        """)
+
+        # Verify connections are still present and valid
+        assert connections_after['count'] > 0, "Connections should still be present after zoom and drag"
+        assert connections_after['count'] == connections_before['count'], "Connection count should remain the same"
+        assert connections_after['hasValidPaths'], f"All connection paths should contain valid coordinates, got: {connections_after['paths'][:3]}"
+        
+        # Verify paths have changed (indicating they updated correctly)
+        paths_changed = any(before != after for before, after in zip(connections_before['paths'], connections_after['paths']))
+        assert paths_changed, "Connection paths should have updated after node dragging"
+
+    def test_connection_anchoring_accuracy(self, browser_driver, editor_server_with_browser):
+        """Test that connections are properly anchored to node edges, not arbitrary points."""
+        editor, url = editor_server_with_browser
+        
+        browser_driver.get(url)
+        wait = WebDriverWait(browser_driver, 10)
+
+        # Wait for page to load
+        wait.until(EC.presence_of_element_located((By.ID, "canvas")))
+        time.sleep(2)  # Allow configuration to load
+
+        # Get connection anchoring data using canvas-internal coordinates
+        anchoring_data = browser_driver.execute_script("""
+            const nodes = document.querySelectorAll('.node');
+            const connections = document.querySelectorAll('.connection-line');
+            
+            if (nodes.length === 0 || connections.length === 0) {
+                return { nodeData: [], connectionData: [], skip: true };
+            }
+            
+            const nodeData = Array.from(nodes).map((node, index) => {
+                // Use canvas-internal coordinates (style.left/top) to match the connection drawing logic
+                const left = parseFloat(node.style.left) || 0;
+                const top = parseFloat(node.style.top) || 0;
+                const rect = node.getBoundingClientRect();
+                
+                return {
+                    index,
+                    id: node.textContent.trim().split('\\n')[1] || 'unknown',
+                    rect: {
+                        left: left,
+                        top: top,
+                        width: rect.width,
+                        height: rect.height,
+                        right: left + rect.width,
+                        vCenter: top + rect.height / 2
+                    }
+                };
+            });
+            
+            const connectionData = Array.from(connections).map((conn, index) => {
+                const d = conn.getAttribute('d');
+                const matches = d.match(/M ([\\d.]+) ([\\d.]+) C .+ ([\\d.]+) ([\\d.]+)/);
+                return {
+                    index,
+                    d,
+                    startPoint: matches ? { x: parseFloat(matches[1]), y: parseFloat(matches[2]) } : null,
+                    endPoint: matches ? { x: parseFloat(matches[3]), y: parseFloat(matches[4]) } : null
+                };
+            });
+            
+            return { nodeData, connectionData, skip: false };
+        """)
+
+        if anchoring_data.get('skip'):
+            pytest.skip("No nodes or connections found in test configuration")
+
+        assert anchoring_data['nodeData'], "Should have node data"
+        assert anchoring_data['connectionData'], "Should have connection data"
+
+        nodes = anchoring_data['nodeData']
+        connections = anchoring_data['connectionData']
+
+        # Verify that connections start and end at reasonable node edge positions
+        for i, conn in enumerate(connections):
+            if conn['startPoint'] and conn['endPoint']:
+                start_x, start_y = conn['startPoint']['x'], conn['startPoint']['y']
+                end_x, end_y = conn['endPoint']['x'], conn['endPoint']['y']
+                
+                # Find nodes that could be source/target based on position
+                potential_sources = [n for n in nodes if abs(n['rect']['right'] - start_x) < 15]
+                potential_targets = [n for n in nodes if abs(n['rect']['left'] - end_x) < 15]
+                
+                assert potential_sources, f"Connection {i} start point ({start_x}, {start_y}) should be near a node's right edge"
+                assert potential_targets, f"Connection {i} end point ({end_x}, {end_y}) should be near a node's left edge"
+                
+                # Verify vertical centering (connection should be near vertical center of nodes)
+                if potential_sources:
+                    source_vcenter = potential_sources[0]['rect']['vCenter']
+                    assert abs(start_y - source_vcenter) < 15, f"Connection start should be near source node vertical center"
+                
+                if potential_targets:
+                    target_vcenter = potential_targets[0]['rect']['vCenter']
+                    assert abs(end_y - target_vcenter) < 15, f"Connection end should be near target node vertical center"
+
+    def test_connection_anchoring_with_different_node_sizes(self, browser_driver, editor_server_with_browser):
+        """Test that connections work correctly with nodes of different sizes."""
+        editor, url = editor_server_with_browser
+        
+        browser_driver.get(url)
+        wait = WebDriverWait(browser_driver, 10)
+
+        # Wait for page to load
+        wait.until(EC.presence_of_element_located((By.ID, "canvas")))
+        time.sleep(2)  # Allow configuration to load
+
+        # Get node size variations and connection anchoring
+        size_data = browser_driver.execute_script("""
+            const nodes = document.querySelectorAll('.node');
+            const connections = document.querySelectorAll('.connection-line');
+            
+            if (nodes.length === 0 || connections.length === 0) {
+                return { nodeSizes: [], connectionAnchors: [], skip: true };
+            }
+            
+            const nodeSizes = Array.from(nodes).map(node => {
+                const rect = node.getBoundingClientRect();
+                return {
+                    width: rect.width,
+                    height: rect.height,
+                    id: node.textContent.trim().split('\\n')[1] || 'unknown'
+                };
+            });
+            
+            const connectionAnchors = Array.from(connections).map(conn => {
+                const d = conn.getAttribute('d');
+                const matches = d.match(/M ([\\d.]+) ([\\d.]+) C .+ ([\\d.]+) ([\\d.]+)/);
+                return matches ? {
+                    startX: parseFloat(matches[1]),
+                    endX: parseFloat(matches[3])
+                } : null;
+            }).filter(Boolean);
+            
+            return { nodeSizes, connectionAnchors, skip: false };
+        """)
+
+        if size_data.get('skip'):
+            pytest.skip("No nodes or connections found in test configuration")
+
+        nodes = size_data['nodeSizes']
+        connections = size_data['connectionAnchors']
+
+        # Verify nodes have different sizes (this validates our test scenario)
+        widths = [node['width'] for node in nodes]
+        if len(set(widths)) > 1:
+            # We have nodes with different sizes - verify connections adapt accordingly
+            assert len(connections) > 0, "Should have connections to test"
+            
+            # Check that connection coordinates are not using the old fixed values
+            old_fixed_coordinates = [140, 360, 580, 800]  # Old hard-coded values
+            for conn in connections:
+                start_x, end_x = conn['startX'], conn['endX']
+                # Connections should not exactly match the old fixed coordinates
+                assert not (start_x in old_fixed_coordinates and end_x in old_fixed_coordinates), \
+                       f"Connection should not use old fixed coordinates: start={start_x}, end={end_x}"
