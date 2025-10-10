@@ -54,6 +54,10 @@ class ConfigurationRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/" or path == "/index.html":
             self._serve_static_file("index.html", "text/html")
+        elif path == "/styles.css":
+            self._serve_static_file("styles.css", "text/css")
+        elif path == "/app.js":
+            self._serve_static_file("app.js", "application/javascript")
         elif path == "/api/load":
             self._handle_load_config()
         elif path == "/api/node-schema":

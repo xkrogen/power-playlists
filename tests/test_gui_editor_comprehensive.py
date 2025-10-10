@@ -285,8 +285,11 @@ class TestGraphicalEditorComprehensive:
                     interface_elements["modals"] = True
 
                 # Check JavaScript
+                # Either inline JS or external script with app.js
                 js_elements = ["ConfigurationEditor", "loadNodeSchemas", "displayConfiguration"]
-                if all(js in content for js in js_elements):
+                has_inline_js = all(js in content for js in js_elements)
+                has_external_js = 'src="app.js"' in content
+                if has_inline_js or has_external_js:
                     interface_elements["javascript"] = True
 
         finally:
