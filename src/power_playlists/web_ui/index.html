@@ -541,6 +541,9 @@
         <button class="btn" id="saveBtn">Save</button>
         <button class="btn" id="saveAsBtn">Save As</button>
         <div style="margin-left: auto; display: flex; gap: 12px;">
+            <button class="btn btn-secondary" id="zoomInBtn">+</button>
+            <button class="btn btn-secondary" id="zoomOutBtn">-</button>
+            <button class="btn btn-secondary" id="resetZoomBtn">Reset Zoom</button>
             <button class="btn btn-secondary" id="addNodeBtn">Add Node</button>
         </div>
     </div>
@@ -655,7 +658,10 @@
                 this.selectedNode = null;
                 this.dragOffset = { x: 0, y: 0 };
                 this.isDragging = false;
-                this.canvasOffset = { x: 0, y: 0 };
+                this.isPanning = false;
+                this.panStart = { x: 0, y: 0 };
+                this.zoomLevel = 1;
+                this.panOffset = { x: 0, y: 0 };
                 this.currentConfig = null;
                 this.nodeSchemas = null;
 
@@ -699,6 +705,9 @@
                 document.getElementById('saveBtn').addEventListener('click', () => this.saveConfiguration());
                 document.getElementById('saveAsBtn').addEventListener('click', () => this.saveAsConfiguration());
                 document.getElementById('addNodeBtn').addEventListener('click', () => this.showAddNodeModal());
+                document.getElementById('zoomInBtn').addEventListener('click', () => this.zoomIn());
+                document.getElementById('zoomOutBtn').addEventListener('click', () => this.zoomOut());
+                document.getElementById('resetZoomBtn').addEventListener('click', () => this.resetZoom());
 
                 // Modal buttons
                 document.getElementById('cancelBtn').addEventListener('click', () => this.closeModal());
@@ -721,6 +730,7 @@
                 this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
                 document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
                 document.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+                this.canvas.addEventListener('wheel', (e) => this.handleWheel(e));
 
                 // Prevent context menu
                 this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -2836,8 +2846,8 @@
                 if (nodeElement) {
                     const rect = nodeElement.getBoundingClientRect();
                     this.dragOffset = {
-                        x: e.clientX - rect.left,
-                        y: e.clientY - rect.top
+                        x: (e.clientX / this.zoomLevel) - (rect.left / this.zoomLevel),
+                        y: (e.clientY / this.zoomLevel) - (rect.top / this.zoomLevel)
                     };
                     this.isDragging = nodeElement;
                     this.selectNode(nodeElement);
@@ -2847,6 +2857,10 @@
                     this.draggingInTemplate = templateCanvas.contains(nodeElement);
                     
                     e.preventDefault();
+                } else {
+                    this.isPanning = true;
+                    this.panStart = { x: e.clientX, y: e.clientY };
+                    this.canvas.style.cursor = 'grabbing';
                 }
             }
 
@@ -2859,8 +2873,8 @@
                         canvasRect = this.canvas.getBoundingClientRect();
                     }
                     
-                    const x = e.clientX - this.dragOffset.x - canvasRect.left;
-                    const y = e.clientY - this.dragOffset.y - canvasRect.top;
+                    const x = (e.clientX - canvasRect.left) / this.zoomLevel - this.dragOffset.x;
+                    const y = (e.clientY - canvasRect.top) / this.zoomLevel - this.dragOffset.y;
                     
                     this.isDragging.style.left = `${Math.max(0, x)}px`;
                     this.isDragging.style.top = `${Math.max(0, y)}px`;
@@ -2881,6 +2895,13 @@
                     } else {
                         this.updateConnections();
                     }
+                } else if (this.isPanning) {
+                    const dx = (e.clientX - this.panStart.x) / this.zoomLevel;
+                    const dy = (e.clientY - this.panStart.y) / this.zoomLevel;
+                    this.panOffset.x += dx;
+                    this.panOffset.y += dy;
+                    this.panStart = { x: e.clientX, y: e.clientY };
+                    this.updateCanvasTransform();
                 }
             }
 
@@ -2890,6 +2911,37 @@
                     this.draggingInTemplate = false;
                     this.hasUnsavedChanges = true;
                 }
+                if (this.isPanning) {
+                    this.isPanning = false;
+                    this.canvas.style.cursor = 'grab';
+                }
+            }
+
+            zoomIn() {
+                this.zoomLevel = Math.min(this.zoomLevel + 0.1, 2);
+                this.updateCanvasTransform();
+            }
+
+            zoomOut() {
+                this.zoomLevel = Math.max(this.zoomLevel - 0.1, 0.2);
+                this.updateCanvasTransform();
+            }
+
+            resetZoom() {
+                this.zoomLevel = 1;
+                this.panOffset = { x: 0, y: 0 };
+                this.updateCanvasTransform();
+            }
+
+            updateCanvasTransform() {
+                this.canvas.style.transform = `scale(${this.zoomLevel}) translate(${this.panOffset.x}px, ${this.panOffset.y}px)`;
+            }
+
+            handleWheel(e) {
+                e.preventDefault();
+                const zoomFactor = e.deltaY > 0 ? -0.1 : 0.1;
+                this.zoomLevel = Math.max(0.2, Math.min(2, this.zoomLevel + zoomFactor));
+                this.updateCanvasTransform();
             }
         }
 
